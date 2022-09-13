@@ -46,10 +46,6 @@ type StorageState struct {
 // and database located at basePath.
 func NewStorageState(db chaindb.Database, blockState *BlockState,
 	tries *Tries, onlinePruner pruner.Config) (*StorageState, error) {
-	if db == nil {
-		return nil, fmt.Errorf("cannot have nil database")
-	}
-
 	storageTable := chaindb.NewTable(db, storagePrefix)
 
 	var p Pruner

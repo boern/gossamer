@@ -165,7 +165,7 @@ func (*nodeBuilder) initNode(cfg *Config) error {
 		Path:     cfg.Global.BasePath,
 		LogLevel: cfg.Global.LogLvl,
 		PrunerCfg: pruner.Config{
-			Mode:           cfg.Global.Pruning,
+			Enabled:        cfg.Global.Pruning,
 			RetainedBlocks: cfg.Global.RetainBlocks,
 		},
 		Telemetry: telemetryMailer,

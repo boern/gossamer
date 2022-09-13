@@ -168,14 +168,16 @@ func (s *BaseState) storePruningData(mode pruner.Config) error {
 }
 
 // loadPruningData retrieves pruner configuration from db.
-func (s *BaseState) loadPruningData() (pruner.Config, error) {
+func (s *BaseState) loadPruningData() (config pruner.Config, err error) {
 	data, err := s.db.Get(common.PruningKey)
 	if err != nil {
-		return pruner.Config{}, err
+		return config, fmt.Errorf("getting database pruning key: %w", err)
 	}
 
-	var mode pruner.Config
-	err = json.Unmarshal(data, &mode)
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return config, fmt.Errorf("unmarshaling pruning config: %w", err)
+	}
 
-	return mode, err
+	return config, nil
 }

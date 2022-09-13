@@ -14,31 +14,9 @@ const (
 	pruneInterval = time.Second
 )
 
-const (
-	// Full pruner mode.
-	Full = Mode("full")
-	// Archive pruner mode.
-	Archive = Mode("archive")
-)
-
-// Mode online pruning mode of historical state tries
-type Mode string
-
-// IsValid checks whether the pruning mode is valid
-func (p Mode) IsValid() bool {
-	switch p {
-	case Full:
-		return true
-	case Archive:
-		return true
-	default:
-		return false
-	}
-}
-
 // Config holds state trie pruning mode and retained blocks
 type Config struct {
-	Mode           Mode
+	Enabled        bool
 	RetainedBlocks uint32
 }
 

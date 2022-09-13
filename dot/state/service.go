@@ -131,22 +131,22 @@ func (s *Service) Start() (err error) {
 	stateRoot := bestHeader.StateRoot
 	logger.Debugf("start with latest state root: %s", stateRoot)
 
-	pr, err := s.Base.loadPruningData()
+	prunerConfig, err := s.Base.loadPruningData()
 	if err != nil {
-		return err
+		return fmt.Errorf("loading online pruner config: %w", err)
 	}
 
 	// create storage state
 	storageTable := chaindb.NewTable(s.db, storagePrefix)
 	journalTable := chaindb.NewTable(s.db, journalPrefix)
 	var p Pruner
-	if pr.Mode == pruner.Archive {
-		p = pruner.NewArchiveNode()
-	} else {
-		p, err = pruner.NewFullNode(journalTable, storageTable, pr.RetainedBlocks, logger)
+	if prunerConfig.Enabled {
+		p, err = pruner.NewFullNode(journalTable, storageTable, prunerConfig.RetainedBlocks, logger)
 		if err != nil {
 			return fmt.Errorf("creating full node pruner: %w", err)
 		}
+	} else {
+		p = pruner.NewArchiveNode()
 	}
 	s.Storage = newStorageState(storageTable, s.Block, tries, p)
 

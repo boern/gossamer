@@ -177,7 +177,7 @@ func TestService_StorageTriePruning(t *testing.T) {
 		Path:     t.TempDir(),
 		LogLevel: log.Info,
 		PrunerCfg: pruner.Config{
-			Mode:           pruner.Full,
+			Enabled:        true,
 			RetainedBlocks: uint32(retainBlocks),
 		},
 		Telemetry: telemetryMock,

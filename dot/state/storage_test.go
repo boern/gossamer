@@ -28,7 +28,7 @@ func newTestStorageState(t *testing.T) *StorageState {
 	storageTable := chaindb.NewTable(db, storagePrefix)
 	bs := newTestBlockState(t, tries)
 	pruner := new(pruner.ArchiveNode)
-	return NewStorageState(storageTable, bs, tries, pruner)
+	return newStorageState(storageTable, bs, tries, pruner)
 }
 
 func TestStorage_StoreAndLoadTrie(t *testing.T) {
@@ -199,7 +199,7 @@ func TestGetStorageChildAndGetStorageFromChild(t *testing.T) {
 
 	storageTable := chaindb.NewTable(db, storagePrefix)
 	pruner := new(pruner.ArchiveNode)
-	storage := NewStorageState(storageTable, blockState, tries, pruner)
+	storage := newStorageState(storageTable, blockState, tries, pruner)
 
 	trieState := runtime.NewTrieState(&genTrie)
 

@@ -148,7 +148,7 @@ func (s *Service) Start() (err error) {
 			return fmt.Errorf("creating full node pruner: %w", err)
 		}
 	}
-	s.Storage = NewStorageState(storageTable, s.Block, tries, p)
+	s.Storage = newStorageState(storageTable, s.Block, tries, p)
 
 	// load current storage state trie into memory
 	_, err = s.Storage.LoadFromDB(stateRoot)

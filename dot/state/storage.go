@@ -46,16 +46,15 @@ type StorageState struct {
 	pruner            Pruner
 }
 
-// NewStorageState creates a new StorageState backed by the given block state
+// newStorageState creates a new StorageState backed by the given block state
 // and database table.
-func NewStorageState(storageTable chaindb.Database, blockState *BlockState,
+func newStorageState(storageTable chaindb.Database, blockState *BlockState,
 	tries *Tries, pruner Pruner) (storageState *StorageState) {
 	return &StorageState{
-		blockState:   blockState,
-		tries:        tries,
-		db:           storageTable,
-		observerList: []Observer{},
-		pruner:       pruner,
+		blockState: blockState,
+		tries:      tries,
+		db:         storageTable,
+		pruner:     pruner,
 	}
 }
 

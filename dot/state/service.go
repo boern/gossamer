@@ -141,7 +141,7 @@ func (s *Service) Start() (err error) {
 	journalTable := chaindb.NewTable(s.db, journalPrefix)
 	var p Pruner
 	if pr.Mode == pruner.Archive {
-		p = new(pruner.ArchiveNode)
+		p = pruner.NewArchiveNode()
 	} else {
 		p, err = pruner.NewFullNode(journalTable, storageTable, pr.RetainedBlocks, logger)
 		if err != nil {

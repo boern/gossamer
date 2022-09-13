@@ -8,6 +8,11 @@ import "github.com/ChainSafe/gossamer/lib/common"
 // ArchiveNode is a no-op since we don't prune nodes in archive mode.
 type ArchiveNode struct{}
 
+// NewArchiveNode returns a new archive mode pruner (no-op).
+func NewArchiveNode() *ArchiveNode {
+	return &ArchiveNode{}
+}
+
 // StoreJournalRecord for archive node doesn't do anything.
 func (*ArchiveNode) StoreJournalRecord(_, _ map[string]struct{}, _ common.Hash, _ int64) (_ error) {
 	return nil

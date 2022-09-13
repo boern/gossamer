@@ -64,7 +64,7 @@ func NewOfflinePruner(inputDBPath, prunedDBPath string, bloomSize uint64,
 
 	// load storage state
 	storageTable := chaindb.NewTable(db, storagePrefix)
-	pruner := new(pruner.ArchiveNode)
+	pruner := pruner.NewArchiveNode()
 	storageState := newStorageState(storageTable, blockState, tries, pruner)
 
 	return &OfflinePruner{

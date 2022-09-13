@@ -39,7 +39,7 @@ type StorageState struct {
 	// change notifiers
 	observerListMutex sync.RWMutex
 	observerList      []Observer
-	pruner            pruner.Pruner
+	pruner            Pruner
 }
 
 // NewStorageState creates a new StorageState backed by the given block state
@@ -52,7 +52,7 @@ func NewStorageState(db chaindb.Database, blockState *BlockState,
 
 	storageTable := chaindb.NewTable(db, storagePrefix)
 
-	var p pruner.Pruner
+	var p Pruner
 	if onlinePruner.Mode == pruner.Full {
 		var err error
 		p, err = pruner.NewFullNode(db, storageTable, onlinePruner.RetainedBlocks, logger)

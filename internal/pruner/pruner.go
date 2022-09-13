@@ -43,12 +43,6 @@ type Config struct {
 	RetainedBlocks uint32
 }
 
-// Pruner is implemented by FullNode and ArchiveNode.
-type Pruner interface {
-	StoreJournalRecord(deletedMerkleValues, insertedMerkleValues map[string]struct{},
-		blockHash common.Hash, blockNum int64) error
-}
-
 type deathRecord struct {
 	blockHash                       common.Hash
 	deletedMerkleValueToBlockNumber map[string]int64

@@ -30,12 +30,12 @@ type FullNode struct {
 }
 
 // NewFullNode creates a Pruner for full node.
-func NewFullNode(db, storageDB chaindb.Database, retainBlocks int64, l log.LeveledLogger) (*FullNode, error) {
+func NewFullNode(journalDB, storageDB chaindb.Database, retainBlocks int64, l log.LeveledLogger) (*FullNode, error) {
 	p := &FullNode{
 		deathList:    make([]deathRow, 0),
 		deathIndex:   make(map[string]int64),
 		storageDB:    storageDB,
-		journalDB:    chaindb.NewTable(db, journalPrefix),
+		journalDB:    journalDB,
 		retainBlocks: retainBlocks,
 		logger:       l,
 	}

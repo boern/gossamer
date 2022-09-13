@@ -47,11 +47,12 @@ type StorageState struct {
 func NewStorageState(db chaindb.Database, blockState *BlockState,
 	tries *Tries, onlinePruner pruner.Config) (*StorageState, error) {
 	storageTable := chaindb.NewTable(db, storagePrefix)
+	journalTable := chaindb.NewTable(db, "journal")
 
 	var p Pruner
 	if onlinePruner.Mode == pruner.Full {
 		var err error
-		p, err = pruner.NewFullNode(db, storageTable, onlinePruner.RetainedBlocks, logger)
+		p, err = pruner.NewFullNode(journalTable, storageTable, onlinePruner.RetainedBlocks, logger)
 		if err != nil {
 			return nil, err
 		}

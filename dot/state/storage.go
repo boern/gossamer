@@ -18,7 +18,11 @@ import (
 )
 
 // storagePrefix storage key prefix.
-var storagePrefix = "storage"
+const (
+	storagePrefix = "storage"
+	journalPrefix = "journal"
+)
+
 var codeKey = common.CodeKey
 
 // ErrTrieDoesNotExist is returned when attempting to interact with a trie that is not stored in the StorageState
@@ -44,11 +48,8 @@ type StorageState struct {
 
 // NewStorageState creates a new StorageState backed by the given block state
 // and database located at basePath.
-func NewStorageState(db chaindb.Database, blockState *BlockState,
+func NewStorageState(storageTable, journalTable chaindb.Database, blockState *BlockState,
 	tries *Tries, onlinePruner pruner.Config) (*StorageState, error) {
-	storageTable := chaindb.NewTable(db, storagePrefix)
-	journalTable := chaindb.NewTable(db, "journal")
-
 	var p Pruner
 	if onlinePruner.Mode == pruner.Full {
 		var err error

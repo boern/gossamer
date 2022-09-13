@@ -74,7 +74,9 @@ func (s *Service) Initialise(gen *genesis.Genesis, header *types.Header, t *trie
 	}
 
 	// create storage state from genesis trie
-	storageState, err := NewStorageState(db, blockState, tries, pruner.Config{})
+	storageTable := chaindb.NewTable(db, storagePrefix)
+	journalTable := chaindb.NewTable(db, "journal")
+	storageState, err := NewStorageState(storageTable, journalTable, blockState, tries, pruner.Config{})
 	if err != nil {
 		return fmt.Errorf("failed to create storage state from trie: %s", err)
 	}

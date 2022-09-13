@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	journalPrefix = "journal"
 	lastPrunedKey = "last_pruned"
 	pruneInterval = time.Second
 )

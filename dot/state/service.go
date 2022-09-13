@@ -137,7 +137,9 @@ func (s *Service) Start() (err error) {
 	}
 
 	// create storage state
-	s.Storage, err = NewStorageState(s.db, s.Block, tries, pr)
+	storageTable := chaindb.NewTable(s.db, storagePrefix)
+	journalTable := chaindb.NewTable(s.db, journalPrefix)
+	s.Storage, err = NewStorageState(storageTable, journalTable, s.Block, tries, pr)
 	if err != nil {
 		return fmt.Errorf("failed to create storage state: %w", err)
 	}

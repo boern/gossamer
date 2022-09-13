@@ -47,27 +47,16 @@ type StorageState struct {
 }
 
 // NewStorageState creates a new StorageState backed by the given block state
-// and database located at basePath.
-func NewStorageState(storageTable, journalTable chaindb.Database, blockState *BlockState,
-	tries *Tries, onlinePruner pruner.Config) (*StorageState, error) {
-	var p Pruner
-	if onlinePruner.Mode == pruner.Full {
-		var err error
-		p, err = pruner.NewFullNode(journalTable, storageTable, onlinePruner.RetainedBlocks, logger)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		p = &pruner.ArchiveNode{}
-	}
-
+// and database table.
+func NewStorageState(storageTable chaindb.Database, blockState *BlockState,
+	tries *Tries, pruner Pruner) (storageState *StorageState) {
 	return &StorageState{
 		blockState:   blockState,
 		tries:        tries,
 		db:           storageTable,
 		observerList: []Observer{},
-		pruner:       p,
-	}, nil
+		pruner:       pruner,
+	}
 }
 
 // StoreTrie stores the given trie in the StorageState and writes it to the database

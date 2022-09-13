@@ -139,10 +139,16 @@ func (s *Service) Start() (err error) {
 	// create storage state
 	storageTable := chaindb.NewTable(s.db, storagePrefix)
 	journalTable := chaindb.NewTable(s.db, journalPrefix)
-	s.Storage, err = NewStorageState(storageTable, journalTable, s.Block, tries, pr)
-	if err != nil {
-		return fmt.Errorf("failed to create storage state: %w", err)
+	var p Pruner
+	if pr.Mode == pruner.Archive {
+		p = new(pruner.ArchiveNode)
+	} else {
+		p, err = pruner.NewFullNode(journalTable, storageTable, pr.RetainedBlocks, logger)
+		if err != nil {
+			return fmt.Errorf("creating full node pruner: %w", err)
+		}
 	}
+	s.Storage = NewStorageState(storageTable, s.Block, tries, p)
 
 	// load current storage state trie into memory
 	_, err = s.Storage.LoadFromDB(stateRoot)

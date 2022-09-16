@@ -25,12 +25,12 @@ type FullNode struct {
 	// pendingNumber is the block number to be pruned.
 	// Initial value is set to 1 and is incremented after every block pruning.
 	pendingNumber int64
-	retainBlocks  int64
+	retainBlocks  uint32
 	sync.RWMutex
 }
 
 // NewFullNode creates a Pruner for full node.
-func NewFullNode(journalDB, storageDB chaindb.Database, retainBlocks int64, l log.LeveledLogger) (*FullNode, error) {
+func NewFullNode(journalDB, storageDB chaindb.Database, retainBlocks uint32, l log.LeveledLogger) (*FullNode, error) {
 	p := &FullNode{
 		deathList:    make([]deathRow, 0),
 		deathIndex:   make(map[string]int64),
@@ -136,7 +136,7 @@ func (p *FullNode) start() {
 	checkPruning := func() {
 		p.Lock()
 		defer p.Unlock()
-		if int64(len(p.deathList)) <= p.retainBlocks {
+		if uint32(len(p.deathList)) <= p.retainBlocks {
 			canPrune = false
 			return
 		}

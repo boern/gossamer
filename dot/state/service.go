@@ -141,7 +141,7 @@ func (s *Service) Start() (err error) {
 	journalTable := chaindb.NewTable(s.db, journalPrefix)
 	var p Pruner
 	if s.PrunerCfg.Enabled {
-		p, err = pruner.NewFullNode(journalTable, storageTable, int64(s.PrunerCfg.RetainBlocks), logger)
+		p, err = pruner.NewFullNode(journalTable, storageTable, s.PrunerCfg.RetainBlocks, logger)
 		if err != nil {
 			return fmt.Errorf("creating full node pruner: %w", err)
 		}

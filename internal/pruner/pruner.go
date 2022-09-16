@@ -16,7 +16,7 @@ const (
 
 type deathRecord struct {
 	blockHash                       common.Hash
-	deletedMerkleValueToBlockNumber map[string]int64
+	deletedMerkleValueToBlockNumber map[string]uint32 // Mapping from deleted key hash to block number.
 }
 
 type deathRow []*deathRecord
@@ -31,7 +31,7 @@ type journalRecord struct {
 }
 
 type journalKey struct {
-	blockNum  int64
+	blockNum  uint32
 	blockHash common.Hash
 }
 

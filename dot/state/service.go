@@ -37,7 +37,7 @@ type Service struct {
 	Grandpa     *GrandpaState
 	closeCh     chan interface{}
 
-	PrunerCfg pruner.Config
+	PrunerCfg PrunerConfig
 	Telemetry telemetry.Client
 
 	// Below are for testing only.
@@ -49,9 +49,14 @@ type Service struct {
 type Config struct {
 	Path      string
 	LogLevel  log.Level
-	PrunerCfg pruner.Config
+	PrunerCfg PrunerConfig
 	Telemetry telemetry.Client
 	Metrics   metrics.IntervalConfig
+}
+
+type PrunerConfig struct {
+	Enabled      bool
+	RetainBlocks uint32
 }
 
 // NewService create a new instance of Service
@@ -131,17 +136,12 @@ func (s *Service) Start() (err error) {
 	stateRoot := bestHeader.StateRoot
 	logger.Debugf("start with latest state root: %s", stateRoot)
 
-	prunerConfig, err := s.Base.loadPruningData()
-	if err != nil {
-		return fmt.Errorf("loading online pruner config: %w", err)
-	}
-
 	// create storage state
 	storageTable := chaindb.NewTable(s.db, storagePrefix)
 	journalTable := chaindb.NewTable(s.db, journalPrefix)
 	var p Pruner
-	if prunerConfig.Enabled {
-		p, err = pruner.NewFullNode(journalTable, storageTable, prunerConfig.RetainedBlocks, logger)
+	if s.PrunerCfg.Enabled {
+		p, err = pruner.NewFullNode(journalTable, storageTable, int64(s.PrunerCfg.RetainBlocks), logger)
 		if err != nil {
 			return fmt.Errorf("creating full node pruner: %w", err)
 		}

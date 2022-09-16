@@ -13,7 +13,6 @@ import (
 	"github.com/ChainSafe/gossamer/dot/telemetry"
 	"github.com/ChainSafe/gossamer/dot/types"
 	"github.com/ChainSafe/gossamer/internal/log"
-	"github.com/ChainSafe/gossamer/internal/pruner"
 	"github.com/ChainSafe/gossamer/lib/common"
 	"github.com/ChainSafe/gossamer/lib/trie"
 	"github.com/golang/mock/gomock"
@@ -176,9 +175,9 @@ func TestService_StorageTriePruning(t *testing.T) {
 	config := Config{
 		Path:     t.TempDir(),
 		LogLevel: log.Info,
-		PrunerCfg: pruner.Config{
-			Enabled:        true,
-			RetainedBlocks: uint32(retainBlocks),
+		PrunerCfg: PrunerConfig{
+			Enabled:      true,
+			RetainBlocks: uint32(retainBlocks),
 		},
 		Telemetry: telemetryMock,
 	}

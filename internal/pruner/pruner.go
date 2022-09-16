@@ -14,12 +14,6 @@ const (
 	pruneInterval = time.Second
 )
 
-// Config holds state trie pruning mode and retained blocks
-type Config struct {
-	Enabled        bool
-	RetainedBlocks uint32
-}
-
 type deathRecord struct {
 	blockHash                       common.Hash
 	deletedMerkleValueToBlockNumber map[string]int64

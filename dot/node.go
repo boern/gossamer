@@ -25,7 +25,6 @@ import (
 	"github.com/ChainSafe/gossamer/dot/types"
 	"github.com/ChainSafe/gossamer/internal/log"
 	"github.com/ChainSafe/gossamer/internal/metrics"
-	"github.com/ChainSafe/gossamer/internal/pruner"
 	"github.com/ChainSafe/gossamer/lib/babe"
 	"github.com/ChainSafe/gossamer/lib/common"
 	"github.com/ChainSafe/gossamer/lib/genesis"
@@ -164,9 +163,9 @@ func (*nodeBuilder) initNode(cfg *Config) error {
 	config := state.Config{
 		Path:     cfg.Global.BasePath,
 		LogLevel: cfg.Global.LogLvl,
-		PrunerCfg: pruner.Config{
-			Enabled:        cfg.Global.Pruning,
-			RetainedBlocks: cfg.Global.RetainBlocks,
+		PrunerCfg: state.PrunerConfig{
+			Enabled:      cfg.Global.Pruning,
+			RetainBlocks: uint32(cfg.Global.RetainBlocks),
 		},
 		Telemetry: telemetryMailer,
 		Metrics:   metrics.NewIntervalConfig(cfg.Global.PublishMetrics),

@@ -10,302 +10,331 @@ import (
 	"time"
 
 	"github.com/ChainSafe/chaindb"
-	"github.com/ChainSafe/gossamer/internal/log"
 	"github.com/ChainSafe/gossamer/lib/common"
 	"github.com/ChainSafe/gossamer/pkg/scale"
 )
 
-// FullNode stores state trie diff and allows online state trie pruning
+// FullNode prunes unneeded database keys for blocks older than the current
+// block minus the number of blocks to retain specified.
+// It keeps track through a journal database of the trie changes for every block
+// in order to determine what can be pruned and what should be kept.
 type FullNode struct {
-	logger                          log.LeveledLogger
-	deathList                       []deathRow
-	storageDB                       chaindb.Database
-	journalDB                       chaindb.Database
+	// Configuration
+	retainBlocks uint32
+
+	// Dependency injected
+	logger    Logger
+	storageDB ChainDBNewBatcher
+	journalDB JournalDB
+
+	// Internal state
+	deathList                       [][]deathRecord
 	deletedMerkleValueToBlockNumber map[string]uint32
-	// pendingNumber is the block number to be pruned.
-	// Initial value is set to 1 and is incremented after every block pruning.
-	pendingNumber uint32
-	retainBlocks  uint32
-	sync.RWMutex
+	nextBlockNumberToPrune          uint32
+	mutex                           sync.RWMutex
+}
+
+type deathRecord struct {
+	blockHash                       common.Hash
+	deletedMerkleValueToBlockNumber map[string]uint32
+}
+
+type journalKey struct {
+	blockNumber uint32
+	blockHash   common.Hash
+}
+
+type journalRecord struct {
+	// blockHash is the hash of the block for which the inserted
+	// and deleted Merkle values sets are corresponding to.
+	blockHash common.Hash
+	// insertedMerkleValues is the set of Merkle values of the trie nodes
+	// inserted in the trie for the block.
+	insertedMerkleValues map[string]struct{}
+	// deletedMerkleValues is the set of Merkle values of the trie nodes
+	// removed from the trie for the block.
+	deletedMerkleValues map[string]struct{}
 }
 
 // NewFullNode creates a Pruner for full node.
-func NewFullNode(journalDB, storageDB chaindb.Database, retainBlocks uint32, l log.LeveledLogger) (*FullNode, error) {
-	p := &FullNode{
-		deathList:                       make([]deathRow, 0),
+func NewFullNode(journalDB JournalDB, storageDB ChainDBNewBatcher, retainBlocks uint32,
+	logger Logger) (pruner *FullNode, err error) {
+	lastPrunedBlockNumber, err := getLastPrunedBlockNumber(journalDB)
+	if err != nil {
+		return nil, fmt.Errorf("getting last pruned block number: %w", err)
+	}
+	logger.Debugf("last pruned block number: %d", lastPrunedBlockNumber)
+
+	pruner = &FullNode{
 		deletedMerkleValueToBlockNumber: make(map[string]uint32),
 		storageDB:                       storageDB,
 		journalDB:                       journalDB,
 		retainBlocks:                    retainBlocks,
-		logger:                          l,
+		nextBlockNumberToPrune:          1 + lastPrunedBlockNumber,
+		logger:                          logger,
 	}
 
-	blockNum, err := p.getLastPrunedIndex()
+	err = pruner.loadDeathList()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading death list: %w", err)
 	}
 
-	p.logger.Debugf("last pruned block is %d", blockNum)
-	blockNum++
+	go pruner.start()
 
-	p.pendingNumber = blockNum
-
-	err = p.loadDeathList()
-	if err != nil {
-		return nil, err
-	}
-
-	go p.start()
-
-	return p, nil
+	return pruner, nil
 }
 
 // StoreJournalRecord stores journal record into DB and add deathRow into deathList
 func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues map[string]struct{},
-	blockHash common.Hash, blockNum uint32) error {
-	jr := newJournalRecord(blockHash, insertedMerkleValues, deletedMerkleValues)
-
-	key := &journalKey{blockNum, blockHash}
-	err := p.storeJournal(key, jr)
-	if err != nil {
-		return fmt.Errorf("failed to store journal record for %d: %w", blockNum, err)
+	blockHash common.Hash, blockNumber uint32) (err error) {
+	blockIsAlreadyPruned := blockNumber < p.nextBlockNumberToPrune
+	if blockIsAlreadyPruned {
+		panic(fmt.Sprintf("block number %d is already pruned, last block number pruned was %d",
+			blockNumber, p.nextBlockNumberToPrune))
 	}
 
-	p.logger.Debugf("journal record stored for block number %d", blockNum)
-	p.addDeathRow(jr, blockNum)
+	key := journalKey{
+		blockNumber: blockNumber,
+		blockHash:   blockHash,
+	}
+	record := journalRecord{
+		blockHash:            blockHash,
+		insertedMerkleValues: insertedMerkleValues,
+		deletedMerkleValues:  deletedMerkleValues,
+	}
+	err = p.storeJournal(key, record)
+	if err != nil {
+		return fmt.Errorf("storing journal record for block number %d: %w", blockNumber, err)
+	}
+
+	p.logger.Debugf("journal record stored for block number %d", blockNumber)
+	p.addDeathRow(blockNumber, record)
 	return nil
 }
 
-func (p *FullNode) addDeathRow(jr *journalRecord, blockNum uint32) {
-	if blockNum == 0 {
-		return
+func (p *FullNode) addDeathRow(blockNumber uint32, journalRecord journalRecord) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	p.processInsertedKeys(journalRecord.insertedMerkleValues, journalRecord.blockHash)
+
+	deletedMerkleValueToBlockNumber := make(map[string]uint32, len(journalRecord.deletedMerkleValues))
+	for k := range journalRecord.deletedMerkleValues {
+		p.deletedMerkleValueToBlockNumber[k] = blockNumber
+		deletedMerkleValueToBlockNumber[k] = blockNumber
 	}
 
-	p.Lock()
-	defer p.Unlock()
+	blockIndex := blockNumber - p.nextBlockNumberToPrune
+	elementsToAdd := blockIndex - uint32(len(p.deathList))
+	extraDeathList := make([][]deathRecord, elementsToAdd)
+	p.deathList = append(p.deathList, extraDeathList...)
 
-	// The block is already pruned.
-	if blockNum < p.pendingNumber {
-		return
-	}
-
-	p.processInsertedKeys(jr.insertedMerkleValues, jr.blockHash)
-
-	// add deleted keys from journal to death index
-	deletedMerkleValueToBlockNumber := make(map[string]uint32, len(jr.deletedMerkleValues))
-	for k := range jr.deletedMerkleValues {
-		p.deletedMerkleValueToBlockNumber[k] = blockNum
-		deletedMerkleValueToBlockNumber[k] = blockNum
-	}
-
-	blockIndex := blockNum - p.pendingNumber
-	idx := blockIndex - uint32(len(p.deathList))
-	for {
-		p.deathList = append(p.deathList, deathRow{})
-		if idx == 0 {
-			break
-		}
-		idx--
-	}
-
-	record := &deathRecord{
-		blockHash:                       jr.blockHash,
+	record := deathRecord{
+		blockHash:                       journalRecord.blockHash,
 		deletedMerkleValueToBlockNumber: deletedMerkleValueToBlockNumber,
 	}
 
-	// add deathRow to deathList
 	p.deathList[blockIndex] = append(p.deathList[blockIndex], record)
 }
 
 // Remove re-inserted keys
 func (p *FullNode) processInsertedKeys(insertedMerkleValues map[string]struct{}, blockHash common.Hash) {
-	for k := range insertedMerkleValues {
-		num, ok := p.deletedMerkleValueToBlockNumber[k]
+	for insertedKey := range insertedMerkleValues {
+		blockNumber, ok := p.deletedMerkleValueToBlockNumber[insertedKey]
 		if !ok {
 			continue
 		}
-		records := p.deathList[num-p.pendingNumber]
-		for _, v := range records {
-			if v.blockHash == blockHash {
-				delete(v.deletedMerkleValueToBlockNumber, k)
+
+		deathListIndex := blockNumber - p.nextBlockNumberToPrune
+		deathRow := p.deathList[deathListIndex]
+		for _, record := range deathRow {
+			if record.blockHash.Equal(blockHash) {
+				delete(record.deletedMerkleValueToBlockNumber, insertedKey)
 			}
 		}
-		delete(p.deletedMerkleValueToBlockNumber, k)
+		delete(p.deletedMerkleValueToBlockNumber, insertedKey)
 	}
 }
 
 func (p *FullNode) start() {
-	p.logger.Debug("pruning started")
-
-	var canPrune bool
-	checkPruning := func() {
-		p.Lock()
-		defer p.Unlock()
-		if uint32(len(p.deathList)) <= p.retainBlocks {
-			canPrune = false
-			return
-		}
-		canPrune = true
-
-		// pop first element from death list
-		row := p.deathList[0]
-		blockNum := p.pendingNumber
-
-		p.logger.Debugf("pruning block number %d", blockNum)
-
-		sdbBatch := p.storageDB.NewBatch()
-		for _, record := range row {
-			err := p.deleteKeys(sdbBatch, record.deletedMerkleValueToBlockNumber)
-			if err != nil {
-				p.logger.Warnf("failed to prune keys for block number %d: %s", blockNum, err)
-				sdbBatch.Reset()
-				return
-			}
-
-			for k := range record.deletedMerkleValueToBlockNumber {
-				delete(p.deletedMerkleValueToBlockNumber, k)
-			}
-		}
-
-		if err := sdbBatch.Flush(); err != nil {
-			p.logger.Warnf("failed to prune keys for block number %d: %s", blockNum, err)
-			return
-		}
-
-		err := p.storeLastPrunedIndex(blockNum)
-		if err != nil {
-			p.logger.Warnf("failed to store last pruned index for block number %d: %s", blockNum, err)
-			return
-		}
-
-		p.deathList = p.deathList[1:]
-		p.pendingNumber++
-
-		jdbBatch := p.journalDB.NewBatch()
-		for _, record := range row {
-			jk := &journalKey{blockNum, record.blockHash}
-			err = p.deleteJournalRecord(jdbBatch, jk)
-			if err != nil {
-				p.logger.Warnf("failed to delete journal record for block number %d: %s", blockNum, err)
-				jdbBatch.Reset()
-				return
-			}
-		}
-
-		if err = jdbBatch.Flush(); err != nil {
-			p.logger.Warnf("failed to flush delete journal record for block number %d: %s", blockNum, err)
-			return
-		}
-		p.logger.Debugf("pruned block number %d", blockNum)
-	}
-
 	for {
-		checkPruning()
-		// Don't sleep if we have data to prune.
-		if !canPrune {
-			time.Sleep(pruneInterval)
+		p.mutex.Lock()
+		if uint32(len(p.deathList)) <= p.retainBlocks {
+			p.mutex.Unlock()
+			const retryWait = time.Second
+			time.Sleep(retryWait)
+			continue
+		}
+
+		blockNumberToPrune := p.nextBlockNumberToPrune
+
+		p.logger.Debugf("pruning block number %d", blockNumberToPrune)
+		err := p.prune()
+		if err != nil {
+			p.logger.Errorf("failed to prune block number %d: %s", blockNumberToPrune, err)
+		} else {
+			p.logger.Debugf("pruned block number %d", blockNumberToPrune)
 		}
 	}
 }
 
-func (p *FullNode) storeJournal(key *journalKey, jr *journalRecord) error {
-	encKey, err := scale.Marshal(*key)
+func (p *FullNode) prune() (err error) {
+	row := p.deathList[0]
+
+	storageBatch := p.storageDB.NewBatch()
+	err = pruneStorage(row, storageBatch)
 	if err != nil {
-		return fmt.Errorf("failed to encode journal key block num %d: %w", key.blockNum, err)
+		storageBatch.Reset()
+		return fmt.Errorf("pruning storage: %w", err)
 	}
 
-	encRecord, err := scale.Marshal(*jr)
+	journalDBBatch := p.journalDB.NewBatch()
+	err = pruneJournal(row, p.nextBlockNumberToPrune, journalDBBatch)
 	if err != nil {
-		return fmt.Errorf("failed to encode journal record block num %d: %w", key.blockNum, err)
+		storageBatch.Reset()
+		journalDBBatch.Reset()
+		return fmt.Errorf("pruning journal: %w", err)
 	}
 
-	err = p.journalDB.Put(encKey, encRecord)
+	err = storeLastPrunedBlockNumber(journalDBBatch, p.nextBlockNumberToPrune)
 	if err != nil {
-		return err
+		storageBatch.Reset()
+		journalDBBatch.Reset()
+		return fmt.Errorf("storing last pruned block number: %w", err)
+	}
+
+	// Flush everything to disk
+	err = storageBatch.Flush()
+	if err != nil {
+		return fmt.Errorf("flushing storage database batch: %w", err)
+	}
+	err = journalDBBatch.Flush()
+	if err != nil {
+		return fmt.Errorf("flushing journal database batch: %w", err)
+	}
+
+	// Update in memory state
+	p.deathList = p.deathList[1:]
+	p.nextBlockNumberToPrune++
+
+	return nil
+}
+
+func pruneStorage(row []deathRecord, batch Deleter) (err error) {
+	for _, record := range row {
+		for deletedMerkleValue := range record.deletedMerkleValueToBlockNumber {
+			err = batch.Del([]byte(deletedMerkleValue))
+			if err != nil {
+				return fmt.Errorf("deleting database key: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func pruneJournal(row []deathRecord, blockNumber uint32, batch Deleter) (err error) {
+	for _, record := range row {
+		key := journalKey{
+			blockNumber: blockNumber,
+			blockHash:   record.blockHash,
+		}
+
+		encodedKey, err := scale.Marshal(key)
+		if err != nil {
+			return fmt.Errorf("scale encoding journal key: %w", err)
+		}
+
+		err = batch.Del(encodedKey)
+		if err != nil {
+			return fmt.Errorf("deleting key from batch: %w", err)
+		}
+	}
+	return nil
+}
+
+func (p *FullNode) storeJournal(key journalKey, record journalRecord) (err error) {
+	scaleEncodedKey, err := scale.Marshal(key)
+	if err != nil {
+		return fmt.Errorf("scale encoding journal key: %w", err)
+	}
+
+	scaleEncodedRecord, err := scale.Marshal(record)
+	if err != nil {
+		return fmt.Errorf("scale encoding journal record: %w", err)
+	}
+
+	err = p.journalDB.Put(scaleEncodedKey, scaleEncodedRecord)
+	if err != nil {
+		return fmt.Errorf("inserting record in journal database: %w", err)
 	}
 
 	return nil
 }
 
 // loadDeathList loads deathList and deletedMerkleValueToBlockNumber from journalRecord.
-func (p *FullNode) loadDeathList() error {
-	itr := p.journalDB.NewIterator()
-	defer itr.Release()
+func (p *FullNode) loadDeathList() (err error) {
+	dbIterator := p.journalDB.NewIterator()
+	defer dbIterator.Release()
 
-	for itr.Next() {
-		key := &journalKey{}
-		err := scale.Unmarshal(itr.Key(), key)
+	for dbIterator.Next() {
+		scaleEncodedKey := dbIterator.Key()
+		var key journalKey
+		err := scale.Unmarshal(scaleEncodedKey, &key)
 		if err != nil {
-			return fmt.Errorf("failed to decode journal key %w", err)
+			return fmt.Errorf("scale decoding journal key: %w", err)
 		}
 
-		val := itr.Value()
+		scaleEncodedRecord := dbIterator.Value()
 
-		jr := &journalRecord{}
-		err = scale.Unmarshal(val, jr)
+		var record journalRecord
+		err = scale.Unmarshal(scaleEncodedRecord, &record)
 		if err != nil {
-			return fmt.Errorf("failed to decode journal record block num %d : %w", key.blockNum, err)
+			return fmt.Errorf("scale decoding journal record for key %#v: %w", key, err)
 		}
 
-		p.addDeathRow(jr, key.blockNum)
-	}
-	return nil
-}
+		blockIsAlreadyPruned := key.blockNumber < p.nextBlockNumberToPrune
+		if blockIsAlreadyPruned {
+			// TODO delete the record from database
+			continue
+		}
 
-func (*FullNode) deleteJournalRecord(b chaindb.Batch, key *journalKey) error {
-	encKey, err := scale.Marshal(*key)
-	if err != nil {
-		return err
-	}
-
-	err = b.Del(encKey)
-	if err != nil {
-		return err
+		p.addDeathRow(key.blockNumber, record)
 	}
 
 	return nil
 }
 
-func (p *FullNode) storeLastPrunedIndex(blockNum uint32) error {
-	encNum, err := scale.Marshal(blockNum)
+const (
+	lastPrunedKey = "last_pruned"
+)
+
+func storeLastPrunedBlockNumber(batch Putter, blockNumber uint32) error {
+	encodedBlockNumber, err := scale.Marshal(blockNumber)
 	if err != nil {
-		return err
+		return fmt.Errorf("encoding block number: %w", err)
 	}
 
-	err = p.journalDB.Put([]byte(lastPrunedKey), encNum)
+	err = batch.Put([]byte(lastPrunedKey), encodedBlockNumber)
 	if err != nil {
-		return err
+		return fmt.Errorf("storing last pruned block number: %w", err)
 	}
 
 	return nil
 }
 
-func (p *FullNode) getLastPrunedIndex() (blockNumber uint32, err error) {
-	val, err := p.journalDB.Get([]byte(lastPrunedKey))
-	if errors.Is(err, chaindb.ErrKeyNotFound) {
-		return 0, nil
+func getLastPrunedBlockNumber(journalDB Getter) (blockNumber uint32, err error) {
+	encodedBlockNumber, err := journalDB.Get([]byte(lastPrunedKey))
+	if err != nil {
+		if errors.Is(err, chaindb.ErrKeyNotFound) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("getting last pruned from database: %w", err)
 	}
 
+	err = scale.Unmarshal(encodedBlockNumber, &blockNumber)
 	if err != nil {
-		return 0, err
-	}
-
-	err = scale.Unmarshal(val, &blockNumber)
-	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("decoding block number: %w", err)
 	}
 
 	return blockNumber, nil
-}
-
-func (*FullNode) deleteKeys(b chaindb.Batch,
-	deletedMerkleValueToBlockNumber map[string]uint32) error {
-	for merkleValue := range deletedMerkleValueToBlockNumber {
-		err := b.Del([]byte(merkleValue))
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

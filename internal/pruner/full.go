@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/ChainSafe/chaindb"
 	"github.com/ChainSafe/gossamer/lib/common"
@@ -31,7 +30,10 @@ type FullNode struct {
 	deathList                       [][]deathRecord
 	deletedMerkleValueToBlockNumber map[string]uint32
 	nextBlockNumberToPrune          uint32
-	mutex                           sync.RWMutex
+	// mutex protects the in memory data members since StoreJournalRecord
+	// is called in lib/babe `epochHandler`'s `run` method which is run
+	// in its own goroutine.
+	mutex sync.RWMutex
 }
 
 type deathRecord struct {
@@ -79,18 +81,28 @@ func NewFullNode(journalDB JournalDB, storageDB ChainDBNewBatcher, retainBlocks 
 		return nil, fmt.Errorf("loading death list: %w", err)
 	}
 
-	go pruner.start()
-
 	return pruner, nil
 }
 
 // StoreJournalRecord stores journal record into DB and add deathRow into deathList
 func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues map[string]struct{},
 	blockHash common.Hash, blockNumber uint32) (err error) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	blockIsAlreadyPruned := blockNumber < p.nextBlockNumberToPrune
 	if blockIsAlreadyPruned {
 		panic(fmt.Sprintf("block number %d is already pruned, last block number pruned was %d",
 			blockNumber, p.nextBlockNumberToPrune))
+	}
+
+	for uint32(len(p.deathList)) > p.retainBlocks {
+		blockNumberToPrune := p.nextBlockNumberToPrune
+		err := p.prune()
+		if err != nil {
+			return fmt.Errorf("pruning block number %d: %w", blockNumberToPrune, err)
+		}
+		p.logger.Debugf("pruned block number %d", blockNumberToPrune)
 	}
 
 	key := journalKey{
@@ -113,9 +125,6 @@ func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues 
 }
 
 func (p *FullNode) addDeathRow(blockNumber uint32, journalRecord journalRecord) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
 	p.processInsertedKeys(journalRecord.insertedMerkleValues, journalRecord.blockHash)
 
 	deletedMerkleValueToBlockNumber := make(map[string]uint32, len(journalRecord.deletedMerkleValues))
@@ -153,28 +162,6 @@ func (p *FullNode) processInsertedKeys(insertedMerkleValues map[string]struct{},
 			}
 		}
 		delete(p.deletedMerkleValueToBlockNumber, insertedKey)
-	}
-}
-
-func (p *FullNode) start() {
-	for {
-		p.mutex.Lock()
-		if uint32(len(p.deathList)) <= p.retainBlocks {
-			p.mutex.Unlock()
-			const retryWait = time.Second
-			time.Sleep(retryWait)
-			continue
-		}
-
-		blockNumberToPrune := p.nextBlockNumberToPrune
-
-		p.logger.Debugf("pruning block number %d", blockNumberToPrune)
-		err := p.prune()
-		if err != nil {
-			p.logger.Errorf("failed to prune block number %d: %s", blockNumberToPrune, err)
-		} else {
-			p.logger.Debugf("pruned block number %d", blockNumberToPrune)
-		}
 	}
 }
 

@@ -96,10 +96,13 @@ func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues 
 			blockNumber, p.nextBlockNumberToPrune))
 	}
 
+	journalDBBatch := p.journalDB.NewBatch()
+
 	for uint32(len(p.deathList)) > p.retainBlocks {
 		blockNumberToPrune := p.nextBlockNumberToPrune
-		err := p.prune()
+		err := p.prune(journalDBBatch)
 		if err != nil {
+			journalDBBatch.Reset()
 			return fmt.Errorf("pruning block number %d: %w", blockNumberToPrune, err)
 		}
 		p.logger.Debugf("pruned block number %d", blockNumberToPrune)
@@ -114,9 +117,15 @@ func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues 
 		insertedMerkleValues: insertedMerkleValues,
 		deletedMerkleValues:  deletedMerkleValues,
 	}
-	err = p.storeJournal(key, record)
+	err = p.storeJournal(journalDBBatch, key, record)
 	if err != nil {
+		journalDBBatch.Reset()
 		return fmt.Errorf("storing journal record for block number %d: %w", blockNumber, err)
+	}
+
+	err = journalDBBatch.Flush()
+	if err != nil {
+		return fmt.Errorf("flushing journal database batch: %w", err)
 	}
 
 	p.logger.Debugf("journal record stored for block number %d", blockNumber)
@@ -165,7 +174,7 @@ func (p *FullNode) processInsertedKeys(insertedMerkleValues map[string]struct{},
 	}
 }
 
-func (p *FullNode) prune() (err error) {
+func (p *FullNode) prune(journalDBBatch PutDeleter) (err error) {
 	row := p.deathList[0]
 
 	storageBatch := p.storageDB.NewBatch()
@@ -175,29 +184,21 @@ func (p *FullNode) prune() (err error) {
 		return fmt.Errorf("pruning storage: %w", err)
 	}
 
-	journalDBBatch := p.journalDB.NewBatch()
 	err = pruneJournal(row, p.nextBlockNumberToPrune, journalDBBatch)
 	if err != nil {
 		storageBatch.Reset()
-		journalDBBatch.Reset()
 		return fmt.Errorf("pruning journal: %w", err)
 	}
 
 	err = storeLastPrunedBlockNumber(journalDBBatch, p.nextBlockNumberToPrune)
 	if err != nil {
 		storageBatch.Reset()
-		journalDBBatch.Reset()
 		return fmt.Errorf("storing last pruned block number: %w", err)
 	}
 
-	// Flush everything to disk
 	err = storageBatch.Flush()
 	if err != nil {
 		return fmt.Errorf("flushing storage database batch: %w", err)
-	}
-	err = journalDBBatch.Flush()
-	if err != nil {
-		return fmt.Errorf("flushing journal database batch: %w", err)
 	}
 
 	// Update in memory state
@@ -239,7 +240,7 @@ func pruneJournal(row []deathRecord, blockNumber uint32, batch Deleter) (err err
 	return nil
 }
 
-func (p *FullNode) storeJournal(key journalKey, record journalRecord) (err error) {
+func (p *FullNode) storeJournal(batch Putter, key journalKey, record journalRecord) (err error) {
 	scaleEncodedKey, err := scale.Marshal(key)
 	if err != nil {
 		return fmt.Errorf("scale encoding journal key: %w", err)
@@ -250,7 +251,7 @@ func (p *FullNode) storeJournal(key journalKey, record journalRecord) (err error
 		return fmt.Errorf("scale encoding journal record: %w", err)
 	}
 
-	err = p.journalDB.Put(scaleEncodedKey, scaleEncodedRecord)
+	err = batch.Put(scaleEncodedKey, scaleEncodedRecord)
 	if err != nil {
 		return fmt.Errorf("inserting record in journal database: %w", err)
 	}

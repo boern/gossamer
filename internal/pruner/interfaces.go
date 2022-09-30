@@ -21,13 +21,17 @@ type ChainDBNewBatcher interface {
 type JournalDB interface {
 	ChainDBNewBatcher
 	Getter
-	Putter
 	NewIterator() chaindb.Iterator
 }
 
 // Getter is the database getter interface.
 type Getter interface {
 	Get(key []byte) (value []byte, err error)
+}
+
+type PutDeleter interface {
+	Putter
+	Deleter
 }
 
 // Putter puts a key value in the database and returns an error.

@@ -37,8 +37,8 @@ type FullNode struct {
 }
 
 type deathRecord struct {
-	blockHash                       common.Hash
-	deletedMerkleValueToBlockNumber map[string]uint32
+	blockHash           common.Hash
+	deletedMerkleValues map[string]struct{}
 }
 
 type journalKey struct {
@@ -136,10 +136,10 @@ func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues 
 func (p *FullNode) addDeathRow(blockNumber uint32, journalRecord journalRecord) {
 	p.processInsertedKeys(journalRecord.insertedMerkleValues, journalRecord.blockHash)
 
-	deletedMerkleValueToBlockNumber := make(map[string]uint32, len(journalRecord.deletedMerkleValues))
+	deletedMerkleValues := make(map[string]struct{}, len(journalRecord.deletedMerkleValues))
 	for k := range journalRecord.deletedMerkleValues {
 		p.deletedMerkleValueToBlockNumber[k] = blockNumber
-		deletedMerkleValueToBlockNumber[k] = blockNumber
+		deletedMerkleValues[k] = struct{}{}
 	}
 
 	blockIndex := blockNumber - p.nextBlockNumberToPrune
@@ -148,8 +148,8 @@ func (p *FullNode) addDeathRow(blockNumber uint32, journalRecord journalRecord) 
 	p.deathList = append(p.deathList, extraDeathList...)
 
 	record := deathRecord{
-		blockHash:                       journalRecord.blockHash,
-		deletedMerkleValueToBlockNumber: deletedMerkleValueToBlockNumber,
+		blockHash:           journalRecord.blockHash,
+		deletedMerkleValues: deletedMerkleValues,
 	}
 
 	p.deathList[blockIndex] = append(p.deathList[blockIndex], record)
@@ -167,7 +167,7 @@ func (p *FullNode) processInsertedKeys(insertedMerkleValues map[string]struct{},
 		deathRow := p.deathList[deathListIndex]
 		for _, record := range deathRow {
 			if record.blockHash.Equal(blockHash) {
-				delete(record.deletedMerkleValueToBlockNumber, insertedKey)
+				delete(record.deletedMerkleValues, insertedKey)
 			}
 		}
 		delete(p.deletedMerkleValueToBlockNumber, insertedKey)
@@ -210,7 +210,7 @@ func (p *FullNode) prune(journalDBBatch PutDeleter) (err error) {
 
 func pruneStorage(row []deathRecord, batch Deleter) (err error) {
 	for _, record := range row {
-		for deletedMerkleValue := range record.deletedMerkleValueToBlockNumber {
+		for deletedMerkleValue := range record.deletedMerkleValues {
 			err = batch.Del([]byte(deletedMerkleValue))
 			if err != nil {
 				return fmt.Errorf("deleting database key: %w", err)

@@ -26,7 +26,7 @@ var testGenesisHeader = &types.Header{
 
 func newTestBlockState(t *testing.T, tries *Tries) *BlockState {
 	ctrl := gomock.NewController(t)
-	telemetryMock := NewMockClient(ctrl)
+	telemetryMock := NewMockTelemetry(ctrl)
 	telemetryMock.EXPECT().SendMessage(gomock.Any()).AnyTimes()
 
 	db := NewInMemoryDB(t)

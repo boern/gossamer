@@ -92,17 +92,16 @@ func TestStorage_TrieState(t *testing.T) {
 	ts.Set([]byte("noot"), []byte("washere"))
 
 	root, err := ts.Root()
+	expectedRootHash := ts.Trie().MustHash()
 	require.NoError(t, err)
 	err = storage.StoreTrie(ts, nil)
 	require.NoError(t, err)
-
-	time.Sleep(time.Millisecond * 100)
 
 	// get trie from db
 	storage.blockState.tries.delete(root)
 	ts3, err := storage.TrieState(&root)
 	require.NoError(t, err)
-	require.Equal(t, ts.Trie().MustHash(), ts3.Trie().MustHash())
+	require.Equal(t, expectedRootHash, ts3.Trie().MustHash())
 }
 
 func TestStorage_LoadFromDB(t *testing.T) {

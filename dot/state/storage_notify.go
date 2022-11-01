@@ -90,10 +90,6 @@ func (s *StorageState) notifyObserver(root common.Hash, o Observer) error {
 		return err
 	}
 
-	if t == nil {
-		return errTrieDoesNotExist(root)
-	}
-
 	subRes := &SubscriptionResult{
 		Hash: root,
 	}

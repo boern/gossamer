@@ -36,6 +36,7 @@ type finalisationHandler struct {
 
 	stopCh      chan struct{}
 	handlerDone chan struct{}
+	firstRun    bool
 }
 
 func newFinalisationHandler(service *Service) *finalisationHandler {
@@ -48,17 +49,21 @@ func newFinalisationHandler(service *Service) *finalisationHandler {
 		initiateRound: service.initiateRound,
 		stopCh:        make(chan struct{}),
 		handlerDone:   make(chan struct{}),
+		firstRun:      true,
 	}
 }
 
 func (fh *finalisationHandler) Start() (<-chan error, error) {
 	errorCh := make(chan error)
-	go fh.run(errorCh)
+	ready := make(chan struct{})
 
+	go fh.run(errorCh, ready)
+
+	<-ready
 	return errorCh, nil
 }
 
-func (fh *finalisationHandler) run(errorCh chan<- error) {
+func (fh *finalisationHandler) run(errorCh chan<- error, ready chan<- struct{}) {
 	defer func() {
 		close(errorCh)
 		close(fh.handlerDone)
@@ -77,7 +82,7 @@ func (fh *finalisationHandler) run(errorCh chan<- error) {
 			return
 		}
 
-		err = fh.runEphemeralServices()
+		err = fh.runEphemeralServices(ready)
 		if err != nil {
 			errorCh <- fmt.Errorf("running ephemeral services: %w", err)
 			return
@@ -127,10 +132,15 @@ func (fh *finalisationHandler) Stop() (err error) {
 // If any service run fails, the other service run is stopped and
 // an error is returned. The function returns nil is the finalisation
 // handler is stopped.
-func (fh *finalisationHandler) runEphemeralServices() error {
+func (fh *finalisationHandler) runEphemeralServices(ready chan<- struct{}) error {
 	fh.servicesLock.Lock()
 	fh.finalisationEngine, fh.votingRound = fh.newServices()
 	fh.servicesLock.Unlock()
+
+	if fh.firstRun {
+		fh.firstRun = false
+		close(ready)
+	}
 
 	finalisationEngineErr := make(chan error)
 	go func() {

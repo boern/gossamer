@@ -41,6 +41,7 @@ func Test_finalisationHandler_runEphemeralServices(t *testing.T) {
 					newServices: builder,
 					stopCh:      make(chan struct{}),
 					handlerDone: make(chan struct{}),
+					firstRun:    true,
 				}
 			},
 		},
@@ -77,6 +78,7 @@ func Test_finalisationHandler_runEphemeralServices(t *testing.T) {
 					newServices: builder,
 					stopCh:      make(chan struct{}),
 					handlerDone: make(chan struct{}),
+					firstRun:    true,
 				}
 			},
 		},
@@ -113,6 +115,7 @@ func Test_finalisationHandler_runEphemeralServices(t *testing.T) {
 					newServices: builder,
 					stopCh:      make(chan struct{}),
 					handlerDone: make(chan struct{}),
+					firstRun:    true,
 				}
 			},
 		},
@@ -126,8 +129,10 @@ func Test_finalisationHandler_runEphemeralServices(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			finalisationHandler := tt.createfinalisationHandler(ctrl)
+			ready := make(chan struct{})
 
-			err := finalisationHandler.runEphemeralServices()
+			err := finalisationHandler.runEphemeralServices(ready)
+			<-ready
 
 			require.ErrorIs(t, err, tt.wantErr)
 			if tt.wantErr != nil {

@@ -486,7 +486,9 @@ func runfinalisationServices(t *testing.T, grandpaServices []*Service) {
 	for _, handler := range finalisationHandlers {
 		go func(t *testing.T, handler *finalisationHandler) {
 			defer handlersWg.Done()
-			err := handler.runEphemeralServices()
+			ready := make(chan struct{})
+			err := handler.runEphemeralServices(ready)
+			<-ready
 			assert.NoError(t, err)
 		}(t, handler)
 	}
@@ -720,7 +722,9 @@ func TestSendingVotesInRightStage(t *testing.T) {
 		t.Helper()
 
 		finalisationHandler := newFinalisationHandler(grandpa)
-		err := finalisationHandler.runEphemeralServices()
+		ready := make(chan struct{})
+		err := finalisationHandler.runEphemeralServices(ready)
+		<-ready
 		require.NoError(t, err)
 	}()
 

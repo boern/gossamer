@@ -8,7 +8,6 @@ package grandpa
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -36,7 +35,7 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 					mockEngine.EXPECT().Run().DoAndReturn(func() error {
 						<-engineStopCh
 						return nil
-					})
+					}).MaxTimes(1)
 					mockEngine.EXPECT().Stop().DoAndReturn(func() error {
 						close(engineStopCh)
 						return nil
@@ -47,7 +46,7 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 					mockVoting.EXPECT().Run().DoAndReturn(func() error {
 						<-votingStopCh
 						return nil
-					})
+					}).MaxTimes(1)
 					mockVoting.EXPECT().Stop().DoAndReturn(func() error {
 						close(votingStopCh)
 						return nil
@@ -61,6 +60,7 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 					initiateRound: func() error { return nil },
 					stopCh:        make(chan struct{}),
 					handlerDone:   make(chan struct{}),
+					firstRun:      true,
 				}
 			},
 		},
@@ -75,7 +75,7 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 					mockEngine.EXPECT().Run().DoAndReturn(func() error {
 						<-engineStopCh
 						return nil
-					})
+					}).MaxTimes(1)
 					mockEngine.EXPECT().Stop().DoAndReturn(func() error {
 						close(engineStopCh)
 						return errors.New("cannot stop finalisation engine test")
@@ -86,7 +86,7 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 					mockVoting.EXPECT().Run().DoAndReturn(func() error {
 						<-votingStopCh
 						return nil
-					})
+					}).MaxTimes(1)
 					mockVoting.EXPECT().Stop().DoAndReturn(func() error {
 						close(votingStopCh)
 						return nil
@@ -101,6 +101,7 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 					initiateRound: func() error { return nil },
 					stopCh:        make(chan struct{}),
 					handlerDone:   make(chan struct{}),
+					firstRun:      true,
 				}
 			},
 		},
@@ -116,7 +117,7 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 					mockEngine.EXPECT().Run().DoAndReturn(func() error {
 						<-engineStopCh
 						return nil
-					})
+					}).MaxTimes(1)
 					mockEngine.EXPECT().Stop().DoAndReturn(func() error {
 						close(engineStopCh)
 						return errors.New("cannot stop finalisation engine test")
@@ -127,7 +128,7 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 					mockVoting.EXPECT().Run().DoAndReturn(func() error {
 						<-votingStopCh
 						return nil
-					})
+					}).MaxTimes(1)
 					mockVoting.EXPECT().Stop().DoAndReturn(func() error {
 						close(votingStopCh)
 						return errors.New("cannot stop voting handler test")
@@ -142,6 +143,7 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 					initiateRound: func() error { return nil },
 					stopCh:        make(chan struct{}),
 					handlerDone:   make(chan struct{}),
+					firstRun:      true,
 				}
 			},
 		},
@@ -157,9 +159,6 @@ func Test_finalisationHandler_Stop_ShouldHalt_Services(t *testing.T) {
 			errorCh, err := handler.Start()
 			require.NoError(t, err)
 
-			// wait enough time to start subservices
-			// and then call stop
-			time.Sleep(2 * time.Second)
 			err = handler.Stop()
 			require.ErrorIs(t, err, tt.wantErr)
 			if tt.errString != "" {

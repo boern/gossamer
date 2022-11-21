@@ -74,9 +74,8 @@ func Test_Decode(t *testing.T) {
 				),
 			),
 			n: &Node{
-				Key:      []byte{9},
-				SubValue: []byte{1, 2, 3},
-				Dirty:    true,
+				PartialKey: []byte{9},
+				SubValue:   []byte{1, 2, 3},
 			},
 		},
 		"branch decoding error": {
@@ -97,9 +96,8 @@ func Test_Decode(t *testing.T) {
 				},
 			),
 			n: &Node{
-				Key:      []byte{9},
-				Children: make([]*Node, ChildrenCapacity),
-				Dirty:    true,
+				PartialKey: []byte{9},
+				Children:   make([]*Node, ChildrenCapacity),
 			},
 		},
 	}
@@ -179,16 +177,14 @@ func Test_decodeBranch(t *testing.T) {
 			variant:          branchVariant.bits,
 			partialKeyLength: 1,
 			branch: &Node{
-				Key: []byte{9},
+				PartialKey: []byte{9},
 				Children: padRightChildren([]*Node{
 					nil, nil, nil, nil, nil,
 					nil, nil, nil, nil, nil,
 					{
 						MerkleValue: childHash,
-						Dirty:       true,
 					},
 				}),
-				Dirty:       true,
 				Descendants: 1,
 			},
 		},
@@ -215,17 +211,15 @@ func Test_decodeBranch(t *testing.T) {
 			variant:          branchWithValueVariant.bits,
 			partialKeyLength: 1,
 			branch: &Node{
-				Key:      []byte{9},
-				SubValue: []byte{7, 8, 9},
+				PartialKey: []byte{9},
+				SubValue:   []byte{7, 8, 9},
 				Children: padRightChildren([]*Node{
 					nil, nil, nil, nil, nil,
 					nil, nil, nil, nil, nil,
 					{
 						MerkleValue: childHash,
-						Dirty:       true,
 					},
 				}),
-				Dirty:       true,
 				Descendants: 1,
 			},
 		},
@@ -269,21 +263,19 @@ func Test_decodeBranch(t *testing.T) {
 			variant:          branchVariant.bits,
 			partialKeyLength: 1,
 			branch: &Node{
-				Key:         []byte{1},
+				PartialKey:  []byte{1},
 				Descendants: 3,
 				Children: padRightChildren([]*Node{
-					{Key: []byte{2}, SubValue: []byte{2}, Dirty: true},
+					{PartialKey: []byte{2}, SubValue: []byte{2}},
 					{
-						Key:         []byte{3},
+						PartialKey:  []byte{3},
 						SubValue:    []byte{3},
-						Dirty:       true,
 						Descendants: 1,
 						Children: padRightChildren([]*Node{
-							{Key: []byte{4}, SubValue: []byte{4}, Dirty: true},
+							{PartialKey: []byte{4}, SubValue: []byte{4}},
 						}),
 					},
 				}),
-				Dirty: true,
 			},
 		},
 	}
@@ -335,7 +327,7 @@ func Test_decodeLeaf(t *testing.T) {
 			errWrapped:       ErrDecodeValue,
 			errMessage:       "cannot decode value: unknown prefix for compact uint: 255",
 		},
-		"zero value": {
+		"missing value data": {
 			reader: bytes.NewBuffer([]byte{
 				9, // key data
 				// missing value data
@@ -343,8 +335,18 @@ func Test_decodeLeaf(t *testing.T) {
 			variant:          leafVariant.bits,
 			partialKeyLength: 1,
 			leaf: &Node{
-				Key:   []byte{9},
-				Dirty: true,
+				PartialKey: []byte{9},
+			},
+		},
+		"empty value data": {
+			reader: bytes.NewBuffer(concatByteSlices([][]byte{
+				{9}, // key data
+				scaleEncodeByteSlice(t, nil),
+			})),
+			variant:          leafVariant.bits,
+			partialKeyLength: 1,
+			leaf: &Node{
+				PartialKey: []byte{9},
 			},
 		},
 		"success": {
@@ -357,9 +359,8 @@ func Test_decodeLeaf(t *testing.T) {
 			variant:          leafVariant.bits,
 			partialKeyLength: 1,
 			leaf: &Node{
-				Key:      []byte{9},
-				SubValue: []byte{1, 2, 3, 4, 5},
-				Dirty:    true,
+				PartialKey: []byte{9},
+				SubValue:   []byte{1, 2, 3, 4, 5},
 			},
 		},
 	}

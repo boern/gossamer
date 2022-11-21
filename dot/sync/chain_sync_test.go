@@ -865,7 +865,7 @@ func TestChainSync_validateResponse(t *testing.T) {
 			t.Parallel()
 			ctrl := gomock.NewController(t)
 
-			cfg := &chainSyncConfig{
+			cfg := chainSyncConfig{
 				bs:            tt.blockStateBuilder(ctrl),
 				pendingBlocks: newDisjointBlockSet(pendingBlocksLimit),
 				readyBlocks:   newBlockQueue(maxResponseSize),
@@ -951,8 +951,9 @@ func TestChainSync_doSync(t *testing.T) {
 
 	workerErr = cs.doSync(req, make(map[peer.ID]struct{}))
 	require.Nil(t, workerErr)
-	bd := readyBlocks.pop(context.Background())
+	bd, err := readyBlocks.pop(context.Background())
 	require.NotNil(t, bd)
+	require.NoError(t, err)
 	require.Equal(t, resp.BlockData[0], bd)
 
 	parent := (&types.Header{
@@ -992,13 +993,15 @@ func TestChainSync_doSync(t *testing.T) {
 	workerErr = cs.doSync(req, make(map[peer.ID]struct{}))
 	require.Nil(t, workerErr)
 
-	bd = readyBlocks.pop(context.Background())
+	bd, err = readyBlocks.pop(context.Background())
 	require.NotNil(t, bd)
 	require.Equal(t, resp.BlockData[0], bd)
+	require.NoError(t, err)
 
-	bd = readyBlocks.pop(context.Background())
+	bd, err = readyBlocks.pop(context.Background())
 	require.NotNil(t, bd)
 	require.Equal(t, resp.BlockData[1], bd)
+	require.NoError(t, err)
 }
 
 func TestHandleReadyBlock(t *testing.T) {
@@ -1054,9 +1057,17 @@ func TestHandleReadyBlock(t *testing.T) {
 	require.False(t, cs.pendingBlocks.hasBlock(header3.Hash()))
 	require.True(t, cs.pendingBlocks.hasBlock(header2NotDescendant.Hash()))
 
-	require.Equal(t, block1.ToBlockData(), readyBlocks.pop(context.Background()))
-	require.Equal(t, block2.ToBlockData(), readyBlocks.pop(context.Background()))
-	require.Equal(t, block3.ToBlockData(), readyBlocks.pop(context.Background()))
+	blockData1, err := readyBlocks.pop(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, block1.ToBlockData(), blockData1)
+
+	blockData2, err := readyBlocks.pop(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, block2.ToBlockData(), blockData2)
+
+	blockData3, err := readyBlocks.pop(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, block3.ToBlockData(), blockData3)
 }
 
 func TestChainSync_determineSyncPeers(t *testing.T) {
@@ -1601,7 +1612,7 @@ func newTestChainSyncWithReadyBlocks(ctrl *gomock.Controller, readyBlocks *block
 	mockBlockState := NewMockBlockState(ctrl)
 	mockBlockState.EXPECT().GetFinalisedNotifierChannel().Return(make(chan *types.FinalisationInfo))
 
-	cfg := &chainSyncConfig{
+	cfg := chainSyncConfig{
 		bs:            mockBlockState,
 		readyBlocks:   readyBlocks,
 		pendingBlocks: newDisjointBlockSet(pendingBlocksLimit),

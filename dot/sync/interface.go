@@ -68,7 +68,7 @@ type BlockState interface {
 	AddBlockToBlockTree(block *types.Block) error
 	GetHashByNumber(blockNumber uint) (common.Hash, error)
 	GetBlockByHash(common.Hash) (*types.Block, error)
-	GetRuntime(*common.Hash) (runtime.Instance, error)
+	GetRuntime(blockHash common.Hash) (instance runtime.Instance, err error)
 	StoreRuntime(common.Hash, runtime.Instance)
 	GetHighestFinalisedHeader() (*types.Header, error)
 	GetFinalisedNotifierChannel() chan *types.FinalisationInfo
@@ -107,7 +107,7 @@ type FinalityGadget interface {
 
 // BlockImportHandler is the interface for the handler of newly imported blocks
 type BlockImportHandler interface {
-	HandleBlockImport(block *types.Block, state *rtstorage.TrieState) error
+	HandleBlockImport(block *types.Block, state *rtstorage.TrieState, announce bool) error
 }
 
 // Network is the interface for the network

@@ -308,7 +308,7 @@ func (mr *MockBlockStateMockRecorder) GetReceipt(arg0 interface{}) *gomock.Call 
 }
 
 // GetRuntime mocks base method.
-func (m *MockBlockState) GetRuntime(arg0 *common.Hash) (runtime.Instance, error) {
+func (m *MockBlockState) GetRuntime(arg0 common.Hash) (runtime.Instance, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRuntime", arg0)
 	ret0, _ := ret[0].(runtime.Instance)
@@ -698,17 +698,17 @@ func (m *MockBlockImportHandler) EXPECT() *MockBlockImportHandlerMockRecorder {
 }
 
 // HandleBlockImport mocks base method.
-func (m *MockBlockImportHandler) HandleBlockImport(arg0 *types.Block, arg1 *storage.TrieState) error {
+func (m *MockBlockImportHandler) HandleBlockImport(arg0 *types.Block, arg1 *storage.TrieState, arg2 bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HandleBlockImport", arg0, arg1)
+	ret := m.ctrl.Call(m, "HandleBlockImport", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // HandleBlockImport indicates an expected call of HandleBlockImport.
-func (mr *MockBlockImportHandlerMockRecorder) HandleBlockImport(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockBlockImportHandlerMockRecorder) HandleBlockImport(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleBlockImport", reflect.TypeOf((*MockBlockImportHandler)(nil).HandleBlockImport), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleBlockImport", reflect.TypeOf((*MockBlockImportHandler)(nil).HandleBlockImport), arg0, arg1, arg2)
 }
 
 // MockNetwork is a mock of Network interface.

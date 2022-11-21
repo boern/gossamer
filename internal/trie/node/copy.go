@@ -82,12 +82,13 @@ func (n *Node) Copy(settings CopySettings) *Node {
 		}
 	}
 
-	if settings.CopyKey && n.Key != nil {
-		cpy.Key = make([]byte, len(n.Key))
-		copy(cpy.Key, n.Key)
+	if settings.CopyKey && n.PartialKey != nil {
+		cpy.PartialKey = make([]byte, len(n.PartialKey))
+		copy(cpy.PartialKey, n.PartialKey)
 	}
 
-	// nil and []byte{} are encoded differently, watch out!
+	// nil and []byte{} values for branches result in a different node encoding,
+	// so we ensure to keep the `nil` value.
 	if settings.CopyValue && n.SubValue != nil {
 		cpy.SubValue = make([]byte, len(n.SubValue))
 		copy(cpy.SubValue, n.SubValue)
@@ -97,11 +98,6 @@ func (n *Node) Copy(settings CopySettings) *Node {
 		if n.MerkleValue != nil {
 			cpy.MerkleValue = make([]byte, len(n.MerkleValue))
 			copy(cpy.MerkleValue, n.MerkleValue)
-		}
-
-		if n.Encoding != nil {
-			cpy.Encoding = make([]byte, len(n.Encoding))
-			copy(cpy.Encoding, n.Encoding)
 		}
 	}
 

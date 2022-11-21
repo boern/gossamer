@@ -18,35 +18,33 @@ func Test_Node_String(t *testing.T) {
 	}{
 		"leaf with value smaller than 1024": {
 			node: &Node{
-				Key:      []byte{1, 2},
-				SubValue: []byte{3, 4},
-				Dirty:    true,
+				PartialKey: []byte{1, 2},
+				SubValue:   []byte{3, 4},
+				Dirty:      true,
 			},
 			s: `Leaf
 ├── Generation: 0
 ├── Dirty: true
 ├── Key: 0x0102
 ├── Value: 0x0304
-├── Calculated encoding: nil
 └── Merkle value: nil`,
 		},
 		"leaf with value higher than 1024": {
 			node: &Node{
-				Key:      []byte{1, 2},
-				SubValue: make([]byte, 1025),
-				Dirty:    true,
+				PartialKey: []byte{1, 2},
+				SubValue:   make([]byte, 1025),
+				Dirty:      true,
 			},
 			s: `Leaf
 ├── Generation: 0
 ├── Dirty: true
 ├── Key: 0x0102
 ├── Value: 0x0000000000000000...0000000000000000
-├── Calculated encoding: nil
 └── Merkle value: nil`,
 		},
 		"branch with value smaller than 1024": {
 			node: &Node{
-				Key:         []byte{1, 2},
+				PartialKey:  []byte{1, 2},
 				SubValue:    []byte{3, 4},
 				Dirty:       true,
 				Descendants: 3,
@@ -69,7 +67,6 @@ func Test_Node_String(t *testing.T) {
 ├── Key: 0x0102
 ├── Value: 0x0304
 ├── Descendants: 3
-├── Calculated encoding: nil
 ├── Merkle value: nil
 ├── Child 3
 |   └── Leaf
@@ -77,7 +74,6 @@ func Test_Node_String(t *testing.T) {
 |       ├── Dirty: false
 |       ├── Key: nil
 |       ├── Value: nil
-|       ├── Calculated encoding: nil
 |       └── Merkle value: nil
 ├── Child 7
 |   └── Branch
@@ -86,7 +82,6 @@ func Test_Node_String(t *testing.T) {
 |       ├── Key: nil
 |       ├── Value: nil
 |       ├── Descendants: 1
-|       ├── Calculated encoding: nil
 |       ├── Merkle value: nil
 |       └── Child 0
 |           └── Leaf
@@ -94,7 +89,6 @@ func Test_Node_String(t *testing.T) {
 |               ├── Dirty: false
 |               ├── Key: nil
 |               ├── Value: nil
-|               ├── Calculated encoding: nil
 |               └── Merkle value: nil
 └── Child 11
     └── Leaf
@@ -102,12 +96,11 @@ func Test_Node_String(t *testing.T) {
         ├── Dirty: false
         ├── Key: nil
         ├── Value: nil
-        ├── Calculated encoding: nil
         └── Merkle value: nil`,
 		},
 		"branch with value higher than 1024": {
 			node: &Node{
-				Key:         []byte{1, 2},
+				PartialKey:  []byte{1, 2},
 				SubValue:    make([]byte, 1025),
 				Dirty:       true,
 				Descendants: 3,
@@ -130,7 +123,6 @@ func Test_Node_String(t *testing.T) {
 ├── Key: 0x0102
 ├── Value: 0x0000000000000000...0000000000000000
 ├── Descendants: 3
-├── Calculated encoding: nil
 ├── Merkle value: nil
 ├── Child 3
 |   └── Leaf
@@ -138,7 +130,6 @@ func Test_Node_String(t *testing.T) {
 |       ├── Dirty: false
 |       ├── Key: nil
 |       ├── Value: nil
-|       ├── Calculated encoding: nil
 |       └── Merkle value: nil
 ├── Child 7
 |   └── Branch
@@ -147,7 +138,6 @@ func Test_Node_String(t *testing.T) {
 |       ├── Key: nil
 |       ├── Value: nil
 |       ├── Descendants: 1
-|       ├── Calculated encoding: nil
 |       ├── Merkle value: nil
 |       └── Child 0
 |           └── Leaf
@@ -155,7 +145,6 @@ func Test_Node_String(t *testing.T) {
 |               ├── Dirty: false
 |               ├── Key: nil
 |               ├── Value: nil
-|               ├── Calculated encoding: nil
 |               └── Merkle value: nil
 └── Child 11
     └── Leaf
@@ -163,7 +152,6 @@ func Test_Node_String(t *testing.T) {
         ├── Dirty: false
         ├── Key: nil
         ├── Value: nil
-        ├── Calculated encoding: nil
         └── Merkle value: nil`,
 		},
 	}

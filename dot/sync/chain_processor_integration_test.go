@@ -30,7 +30,8 @@ func TestChainProcessor_HandleBlockResponse_ValidChain(t *testing.T) {
 	parent, err := responder.blockState.(*state.BlockState).BestBlockHeader()
 	require.NoError(t, err)
 
-	rt, err := responder.blockState.GetRuntime(nil)
+	bestBlockHash := responder.blockState.BestBlockHash()
+	rt, err := responder.blockState.GetRuntime(bestBlockHash)
 	require.NoError(t, err)
 
 	for i := 0; i < maxResponseSize*2; i++ {
@@ -56,7 +57,7 @@ func TestChainProcessor_HandleBlockResponse_ValidChain(t *testing.T) {
 
 	// process response
 	for _, bd := range resp.BlockData {
-		err = syncer.chainProcessor.(*chainProcessor).processBlockData(bd)
+		err = syncer.chainProcessor.(*chainProcessor).processBlockData(*bd)
 		require.NoError(t, err)
 	}
 
@@ -76,7 +77,7 @@ func TestChainProcessor_HandleBlockResponse_ValidChain(t *testing.T) {
 
 	// process response
 	for _, bd := range resp.BlockData {
-		err = syncer.chainProcessor.(*chainProcessor).processBlockData(bd)
+		err = syncer.chainProcessor.(*chainProcessor).processBlockData(*bd)
 		require.NoError(t, err)
 	}
 }
@@ -89,7 +90,8 @@ func TestChainProcessor_HandleBlockResponse_MissingBlocks(t *testing.T) {
 	parent, err := syncer.blockState.(*state.BlockState).BestBlockHeader()
 	require.NoError(t, err)
 
-	rt, err := syncer.blockState.GetRuntime(nil)
+	bestBlockHash := syncer.blockState.BestBlockHash()
+	rt, err := syncer.blockState.GetRuntime(bestBlockHash)
 	require.NoError(t, err)
 
 	for i := 0; i < 4; i++ {
@@ -104,7 +106,7 @@ func TestChainProcessor_HandleBlockResponse_MissingBlocks(t *testing.T) {
 	parent, err = responder.blockState.(*state.BlockState).BestBlockHeader()
 	require.NoError(t, err)
 
-	rt, err = responder.blockState.GetRuntime(nil)
+	rt, err = syncer.blockState.GetRuntime(bestBlockHash)
 	require.NoError(t, err)
 
 	for i := 0; i < 16; i++ {
@@ -128,7 +130,7 @@ func TestChainProcessor_HandleBlockResponse_MissingBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, bd := range resp.BlockData {
-		err = syncer.chainProcessor.(*chainProcessor).processBlockData(bd)
+		err = syncer.chainProcessor.(*chainProcessor).processBlockData(*bd)
 		require.True(t, errors.Is(err, errFailedToGetParent))
 	}
 }
@@ -152,12 +154,6 @@ func TestChainProcessor_handleBody_ShouldRemoveIncludedExtrinsics(t *testing.T) 
 	require.Nil(t, inQueue, "queue should be empty")
 }
 
-func TestChainProcessor_HandleBlockResponse_NoBlockData(t *testing.T) {
-	syncer := newTestSyncer(t)
-	err := syncer.chainProcessor.(*chainProcessor).processBlockData(nil)
-	require.Equal(t, ErrNilBlockData, err)
-}
-
 // TODO: add test against latest gssmr runtime
 // See https://github.com/ChainSafe/gossamer/issues/2703
 func TestChainProcessor_HandleBlockResponse_BlockData(t *testing.T) {
@@ -166,7 +162,7 @@ func TestChainProcessor_HandleBlockResponse_BlockData(t *testing.T) {
 	parent, err := syncer.blockState.(*state.BlockState).BestBlockHeader()
 	require.NoError(t, err)
 
-	rt, err := syncer.blockState.GetRuntime(nil)
+	rt, err := syncer.blockState.GetRuntime(parent.Hash())
 	require.NoError(t, err)
 
 	block := BuildBlock(t, rt, parent, nil)
@@ -184,7 +180,7 @@ func TestChainProcessor_HandleBlockResponse_BlockData(t *testing.T) {
 	}
 
 	for _, bd := range msg.BlockData {
-		err = syncer.chainProcessor.(*chainProcessor).processBlockData(bd)
+		err = syncer.chainProcessor.(*chainProcessor).processBlockData(*bd)
 		require.NoError(t, err)
 	}
 }
@@ -197,7 +193,8 @@ func TestChainProcessor_ExecuteBlock(t *testing.T) {
 	parent, err := syncer.blockState.(*state.BlockState).BestBlockHeader()
 	require.NoError(t, err)
 
-	rt, err := syncer.blockState.GetRuntime(nil)
+	bestBlockHash := syncer.blockState.BestBlockHash()
+	rt, err := syncer.blockState.GetRuntime(bestBlockHash)
 	require.NoError(t, err)
 
 	block := BuildBlock(t, rt, parent, nil)

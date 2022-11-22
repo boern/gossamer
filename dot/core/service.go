@@ -421,6 +421,7 @@ func (s *Service) maintainTransactionPool(block *types.Block, bestBlockHash comm
 	if err != nil {
 		return fmt.Errorf("getting trie state: %w", err)
 	}
+	temporaryState := ts.Snapshot()
 
 	// re-validate transactions in the pool and move them to the queue
 	txs := s.transactionState.PendingInPool()
@@ -431,7 +432,8 @@ func (s *Service) maintainTransactionPool(block *types.Block, bestBlockHash comm
 			return fmt.Errorf("failed to get runtime to re-validate transactions in pool: %s", err)
 		}
 
-		rt.SetContextStorage(ts)
+		// ValidateTransaction modifies the trie state so we use the temporary state.
+		rt.SetContextStorage(temporaryState)
 		externalExt, err := s.buildExternalTransaction(rt, tx.Extrinsic)
 		if err != nil {
 			return fmt.Errorf("building external transaction: %s", err)
@@ -533,7 +535,10 @@ func (s *Service) HandleSubmittedExtrinsic(ext types.Extrinsic) error {
 		return err
 	}
 
-	rt.SetContextStorage(ts)
+	// ValidateTransaction modifies the trie state so we want to snapshot it
+	// so that the original trie state remains unaffected.
+	temporaryState := ts.Snapshot()
+	rt.SetContextStorage(temporaryState)
 
 	externalExt, err := s.buildExternalTransaction(rt, ext)
 	if err != nil {

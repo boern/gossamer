@@ -223,6 +223,50 @@ func (in *Instance) QueryCallFeeDetails(ext []byte) (*types.FeeDetails, error) {
 	return dispatchInfo, nil
 }
 
+/*
+GenerateKeyOwnershipProof args
+- auth set id
+- pub key of authority
+
+Return
+- A SCALE encoded Option as defined in Definition 194 containing the proof in an opaque form
+*/
+func (in *Instance) GenerateKeyOwnershipProof() error {
+	_, err := in.Exec(runtime.GrandpaGenerateKeyOwnershipProof, []byte{})
+	if err != nil {
+		return err
+	}
+	// not sure if I need to unmarshall or not
+	return nil
+}
+
+/*
+
+SubmitReportEquivocation Args
+- idv is authority set
+- e is stage
+- r is round number
+- pub key of equivocator
+- block hash of first vote
+- block number of first vote
+- signature of first vote
+- block hash of second vote
+- block number of second vote
+- signature of second vote
+- proof of key signature in opaque form
+
+Return
+- A SCALE encoded Option as defined in Definition 194 containing an empty value on success.
+
+*/
+func (in *Instance) SubmitReportEquivocation() error {
+	_, err := in.Exec(runtime.GrandpaSubmitReportEquivocation, []byte{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (in *Instance) CheckInherents()      {} //nolint:revive
 func (in *Instance) RandomSeed()          {} //nolint:revive
 func (in *Instance) OffchainWorker()      {} //nolint:revive

@@ -46,7 +46,9 @@ func NewOfflinePruner(inputDBPath, prunedDBPath string, bloomSize uint64,
 
 	// create blockState state
 	// NewBlockState on pruner execution does not use telemetry
-	blockState, err := NewBlockState(db, tries, nil)
+	blockStateDB := chaindb.NewTable(db, blockPrefix)
+	baseState := NewBaseState(db)
+	blockState, err := NewBlockState(blockStateDB, baseState, tries, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create block state: %w", err)
 	}

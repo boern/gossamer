@@ -68,17 +68,14 @@ type EpochState struct {
 }
 
 // NewEpochStateFromGenesis returns a new EpochState given information for the first epoch, fetched from the runtime
-func NewEpochStateFromGenesis(db *chaindb.BadgerDB, blockState *BlockState,
+func NewEpochStateFromGenesis(db GetPutter, baseState *BaseState, blockState *BlockState,
 	genesisConfig *types.BabeConfiguration) (*EpochState, error) {
-	baseState := NewBaseState(db)
-
 	err := baseState.storeFirstSlot(1) // this may change once the first block is imported
 	if err != nil {
 		return nil, err
 	}
 
-	epochDB := chaindb.NewTable(db, epochPrefix)
-	err = epochDB.Put(currentEpochKey, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	err = db.Put(currentEpochKey, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 	if err != nil {
 		return nil, err
 	}
@@ -88,9 +85,9 @@ func NewEpochStateFromGenesis(db *chaindb.BadgerDB, blockState *BlockState,
 	}
 
 	s := &EpochState{
-		baseState:      NewBaseState(db),
+		baseState:      baseState,
 		blockState:     blockState,
-		db:             epochDB,
+		db:             db,
 		epochLength:    genesisConfig.EpochLength,
 		nextEpochData:  make(nextEpochMap[types.NextEpochData]),
 		nextConfigData: make(nextEpochMap[types.NextConfigData]),

@@ -52,7 +52,10 @@ func newTestVerificationManager(t *testing.T, genCfg *types.BabeConfiguration) *
 		genCfg = genesisBABEConfig
 	}
 
-	dbSrv.Epoch, err = state.NewEpochStateFromGenesis(dbSrv.DB(), dbSrv.Block, genCfg)
+	const epochPrefix = "epoch"
+	epochStateDatabase := chaindb.NewTable(dbSrv.DB(), epochPrefix)
+	dbSrv.Epoch, err = state.NewEpochStateFromGenesis(epochStateDatabase,
+		dbSrv.Base, dbSrv.Block, genCfg)
 	require.NoError(t, err)
 
 	logger.Patch(log.SetLevel(defaultTestLogLvl))
@@ -531,7 +534,10 @@ func TestVerifyForkBlocksWithRespectiveEpochData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	epochState, err := state.NewEpochStateFromGenesis(inMemoryDB, stateService.Block, epochBABEConfig)
+	const epochPrefix = "epoch"
+	epochStateDatabase := chaindb.NewTable(inMemoryDB, epochPrefix)
+	epochState, err := state.NewEpochStateFromGenesis(epochStateDatabase,
+		stateService.Base, stateService.Block, epochBABEConfig)
 	require.NoError(t, err)
 
 	digestHandler, err := digest.NewHandler(log.DoNotChange, stateService.Block, epochState, stateService.Grandpa)

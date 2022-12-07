@@ -6,6 +6,7 @@ package runtime
 import (
 	"github.com/ChainSafe/gossamer/dot/types"
 	"github.com/ChainSafe/gossamer/lib/common"
+	"github.com/ChainSafe/gossamer/lib/crypto/ed25519"
 	"github.com/ChainSafe/gossamer/lib/keystore"
 	"github.com/ChainSafe/gossamer/lib/transaction"
 	"github.com/ChainSafe/gossamer/lib/trie"
@@ -39,6 +40,7 @@ type Instance interface {
 	ExecuteBlock(block *types.Block) ([]byte, error)
 	DecodeSessionKeys(enc []byte) ([]byte, error)
 	PaymentQueryInfo(ext []byte) (*types.RuntimeDispatchInfo, error)
+	GrandpaGenerateKeyOwnershipProof(authSetId uint64, pubKey ed25519.PublicKeyBytes) (proof []byte, err error)
 
 	CheckInherents() // TODO: use this in block verification process (#1873)
 

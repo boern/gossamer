@@ -5,10 +5,8 @@ package wasmer
 
 import (
 	"fmt"
-	"github.com/ChainSafe/gossamer/lib/crypto/ed25519"
-	"github.com/ChainSafe/gossamer/lib/grandpa"
-
 	"github.com/ChainSafe/gossamer/dot/types"
+	"github.com/ChainSafe/gossamer/lib/crypto/ed25519"
 	"github.com/ChainSafe/gossamer/lib/runtime"
 	"github.com/ChainSafe/gossamer/lib/transaction"
 	"github.com/ChainSafe/gossamer/pkg/scale"
@@ -19,7 +17,7 @@ type OpaqueKeyOwnershipProof []byte
 
 type GrandpaEquivocationProof struct {
 	setId        uint64
-	equivocation grandpa.Vote //Check this is correct
+	equivocation types.Equivocation //Check this is correct
 }
 
 // ValidateTransaction runs the extrinsic through the runtime function

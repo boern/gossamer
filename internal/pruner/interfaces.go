@@ -3,7 +3,10 @@
 
 package pruner
 
-import "github.com/ChainSafe/chaindb"
+import (
+	"github.com/ChainSafe/chaindb"
+	"github.com/ChainSafe/gossamer/lib/common"
+)
 
 // Logger is the logger for the online pruner.
 type Logger interface {
@@ -17,11 +20,17 @@ type ChainDBNewBatcher interface {
 	NewBatch() chaindb.Batch
 }
 
-// JournalDB is the chaindb interface for the journal database.
-type JournalDB interface {
+// JournalDatabase is the chaindb interface for the journal database.
+type JournalDatabase interface {
 	ChainDBNewBatcher
 	Getter
 	NewIterator() chaindb.Iterator
+}
+
+// GetterPutter combines the Getter and Putter interfaces.
+type GetterPutter interface {
+	Getter
+	Putter
 }
 
 // Getter is the database getter interface.
@@ -29,6 +38,7 @@ type Getter interface {
 	Get(key []byte) (value []byte, err error)
 }
 
+// PutDeleter combines the Putter and Deleter interfaces.
 type PutDeleter interface {
 	Putter
 	Deleter
@@ -42,4 +52,10 @@ type Putter interface {
 // Deleter deletes a key and returns an error.
 type Deleter interface {
 	Del(key []byte) error
+}
+
+// BlockState is the block state interface to determine
+// if a block is the descendant of another block.
+type BlockState interface {
+	IsDescendantOf(parent, child common.Hash) (bool, error)
 }

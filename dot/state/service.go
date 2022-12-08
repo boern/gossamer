@@ -54,6 +54,7 @@ type Config struct {
 	Metrics   metrics.IntervalConfig
 }
 
+// PrunerConfig is the configuration for the state pruner.
 type PrunerConfig struct {
 	Enabled      bool
 	RetainBlocks uint32
@@ -141,7 +142,7 @@ func (s *Service) Start() (err error) {
 	journalTable := chaindb.NewTable(s.db, journalPrefix)
 	var p Pruner
 	if s.PrunerCfg.Enabled {
-		p, err = pruner.NewFullNode(journalTable, storageTable, s.PrunerCfg.RetainBlocks, logger)
+		p, err = pruner.NewFullNode(journalTable, storageTable, s.PrunerCfg.RetainBlocks, s.Block, logger)
 		if err != nil {
 			return fmt.Errorf("creating full node pruner: %w", err)
 		}

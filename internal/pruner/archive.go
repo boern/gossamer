@@ -14,6 +14,6 @@ func NewArchiveNode() *ArchiveNode {
 }
 
 // StoreJournalRecord for archive node doesn't do anything.
-func (*ArchiveNode) StoreJournalRecord(_, _ map[string]struct{}, _ common.Hash, _ int64) (_ error) {
+func (*ArchiveNode) StoreJournalRecord(_, _ map[string]struct{}, _ common.Hash, _ uint32) (_ error) {
 	return nil
 }

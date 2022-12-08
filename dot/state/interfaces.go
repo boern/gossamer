@@ -6,6 +6,6 @@ package state
 import "github.com/ChainSafe/gossamer/lib/common"
 
 type Pruner interface {
-	StoreJournalRecord(deletedMerkleValues, insertedMerkleValues map[string]struct{},
-		blockHash common.Hash, blockNum int64) error
+	StoreJournalRecord(deletedNodeHashes, insertedNodeHashes map[common.Hash]struct{},
+		blockHash common.Hash, blockNumber uint32) error
 }

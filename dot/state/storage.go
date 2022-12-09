@@ -76,7 +76,19 @@ func (s *StorageState) StoreTrie(ts *rtstorage.TrieState, header *types.Header) 
 			return fmt.Errorf("failed to get state trie inserted keys: block %s %w", header.Hash(), err)
 		}
 
-		err = s.pruner.StoreJournalRecord(deletedMerkleValues, insertedMerkleValues, header.Hash(), int64(header.Number))
+		// Temporary work-around until we drop merkle values for node hashes in another PR (already opened).
+		insertedNodeHashes := make(map[common.Hash]struct{}, len(insertedMerkleValues))
+		for k := range insertedMerkleValues {
+			nodeHash := common.NewHash([]byte(k))
+			insertedNodeHashes[nodeHash] = struct{}{}
+		}
+		deletedNodeHashes := make(map[common.Hash]struct{}, len(deletedMerkleValues))
+		for k := range deletedMerkleValues {
+			nodeHash := common.NewHash([]byte(k))
+			deletedNodeHashes[nodeHash] = struct{}{}
+		}
+
+		err = s.pruner.StoreJournalRecord(deletedNodeHashes, insertedNodeHashes, header.Hash(), uint32(header.Number))
 		if err != nil {
 			return err
 		}

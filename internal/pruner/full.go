@@ -55,10 +55,10 @@ type journalKey struct {
 type journalRecord struct {
 	// InsertedNodeHashes is the set of node hashes of the trie nodes
 	// inserted in the trie for the block.
-	InsertedNodeHashes map[string]struct{}
+	InsertedNodeHashes map[common.Hash]struct{}
 	// DeletedNodeHashes is the set of node hashes of the trie nodes
 	// removed from the trie for the block.
-	DeletedNodeHashes map[string]struct{}
+	DeletedNodeHashes map[common.Hash]struct{}
 }
 
 // NewFullNode creates a full node pruner.
@@ -106,7 +106,7 @@ func NewFullNode(journalDB JournalDatabase, storageDB ChainDBNewBatcher, retainB
 // StoreJournalRecord stores the trie deltas impacting the storage database for a particular
 // block hash. It prunes all block numbers falling off the window of block numbers to keep,
 // before inserting the new record. It is thread safe to call.
-func (p *FullNode) StoreJournalRecord(deletedNodeHashes, insertedNodeHashes map[string]struct{},
+func (p *FullNode) StoreJournalRecord(deletedNodeHashes, insertedNodeHashes map[common.Hash]struct{},
 	blockHash common.Hash, blockNumber uint32) (err error) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -185,24 +185,25 @@ func (p *FullNode) StoreJournalRecord(deletedNodeHashes, insertedNodeHashes map[
 	return nil
 }
 
-func (p *FullNode) handleInsertedKeys(insertedNodeHashes map[string]struct{},
+func (p *FullNode) handleInsertedKeys(insertedNodeHashes map[common.Hash]struct{},
 	blockNumber uint32, blockHash common.Hash, journalDBBatch Putter) (err error) {
 	for insertedNodeHash := range insertedNodeHashes {
 		err = p.handleInsertedKey(insertedNodeHash, blockNumber, blockHash, journalDBBatch)
 		if err != nil {
-			return fmt.Errorf("handling inserted key 0x%x: %w",
-				[]byte(insertedNodeHash), err)
+			return fmt.Errorf("handling inserted key %s: %w",
+				insertedNodeHash, err)
 		}
 	}
 
 	return nil
 }
 
-func (p *FullNode) handleInsertedKey(insertedNodeHash string, blockNumber uint32,
+func (p *FullNode) handleInsertedKey(insertedNodeHash common.Hash, blockNumber uint32,
 	blockHash common.Hash, journalDBBatch Putter) (err error) {
 	// Try to find if the node hash was deleted in another block before
 	// since we no longer want to prune it, as it was re-inserted.
-	journalKeyDeletedAt, err := p.journalDatabase.Get([]byte(deletedNodeHashKeyPrefix + insertedNodeHash))
+	deletedNodeHashKey := makeDeletedKey(insertedNodeHash)
+	journalKeyDeletedAt, err := p.journalDatabase.Get(deletedNodeHashKey)
 	nodeHashDeletedInAnotherBlock := errors.Is(err, chaindb.ErrKeyNotFound)
 	if !nodeHashDeletedInAnotherBlock {
 		return nil
@@ -323,7 +324,7 @@ func pruneStorage(blockNumber uint32, blockHashes []common.Hash,
 		}
 
 		for deletedNodeHash := range record.DeletedNodeHashes {
-			err = batch.Del([]byte(deletedNodeHash))
+			err = batch.Del(deletedNodeHash.ToBytes())
 			if err != nil {
 				return fmt.Errorf("deleting key from batch: %w", err)
 			}
@@ -372,7 +373,7 @@ func storeJournalRecord(batch Putter, blockNumber uint32, blockHash common.Hash,
 		// We store the block hash + block number for each deleted node hash
 		// so a node hash can quickly be checked for from the journal database
 		// when running `handleInsertedKey`.
-		databaseKey := []byte(deletedNodeHashKeyPrefix + deletedNodeHash)
+		databaseKey := makeDeletedKey(deletedNodeHash)
 		err = batch.Put(databaseKey, encodedKey)
 		if err != nil {
 			return fmt.Errorf("putting journal key in database batch: %w", err)
@@ -500,4 +501,11 @@ func pruneBlockHashes(blockNumber uint32, batch Deleter) (err error) {
 			blockNumber, err)
 	}
 	return nil
+}
+
+func makeDeletedKey(hash common.Hash) (key []byte) {
+	key = make([]byte, 0, len(deletedNodeHashKeyPrefix)+common.HashLength)
+	key = append(key, []byte(deletedNodeHashKeyPrefix)...)
+	key = append(key, hash.ToBytes()...)
+	return key
 }

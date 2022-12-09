@@ -95,7 +95,7 @@ func Test_FullNode_pruneAll(t *testing.T) {
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
 				encodedKey := scaleMarshal(t, key)
 				record := journalRecord{
-					DeletedMerkleValues: map[string]struct{}{"deletedhash": {}},
+					DeletedNodeHashes: map[string]struct{}{"deletedhash": {}},
 				}
 				encodedRecord := scaleMarshal(t, record)
 				database.EXPECT().Get(encodedKey).Return(encodedRecord, nil)
@@ -147,7 +147,7 @@ func Test_FullNode_pruneAll(t *testing.T) {
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
 				encodedKey := scaleMarshal(t, key)
 				record := journalRecord{
-					DeletedMerkleValues: map[string]struct{}{"deletedhash": {}},
+					DeletedNodeHashes: map[string]struct{}{"deletedhash": {}},
 				}
 				encodedRecord := scaleMarshal(t, record)
 				database.EXPECT().Get(encodedKey).Return(encodedRecord, nil)
@@ -198,7 +198,7 @@ func Test_FullNode_pruneAll(t *testing.T) {
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
 				encodedKey := scaleMarshal(t, key)
 				record := journalRecord{
-					DeletedMerkleValues: map[string]struct{}{"deletedhash": {}},
+					DeletedNodeHashes: map[string]struct{}{"deletedhash": {}},
 				}
 				encodedRecord := scaleMarshal(t, record)
 				database.EXPECT().Get(encodedKey).Return(encodedRecord, nil)
@@ -329,7 +329,7 @@ func Test_prune(t *testing.T) {
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
 				encodedKey := scaleMarshal(t, key)
 				record := journalRecord{
-					DeletedMerkleValues: map[string]struct{}{"deletedhash": {}},
+					DeletedNodeHashes: map[string]struct{}{"deletedhash": {}},
 				}
 				encodedRecord := scaleMarshal(t, record)
 				database.EXPECT().Get(encodedKey).Return(encodedRecord, nil)
@@ -359,7 +359,7 @@ func Test_prune(t *testing.T) {
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
 				encodedKey := scaleMarshal(t, key)
 				record := journalRecord{
-					DeletedMerkleValues: map[string]struct{}{"deletedhash": {}},
+					DeletedNodeHashes: map[string]struct{}{"deletedhash": {}},
 				}
 				encodedRecord := scaleMarshal(t, record)
 				database.EXPECT().Get(encodedKey).Return(encodedRecord, nil)
@@ -434,7 +434,7 @@ func Test_pruneStorage(t *testing.T) {
 				database := NewMockGetter(ctrl)
 				key := journalKey{BlockNumber: 10, BlockHash: common.Hash{1}}
 				encodedKey := scaleMarshal(t, key)
-				record := journalRecord{DeletedMerkleValues: map[string]struct{}{
+				record := journalRecord{DeletedNodeHashes: map[string]struct{}{
 					"deleted_hash": {},
 				}}
 				encodedRecord := scaleMarshal(t, record)
@@ -457,7 +457,7 @@ func Test_pruneStorage(t *testing.T) {
 
 				key1 := journalKey{BlockNumber: 10, BlockHash: common.Hash{1}}
 				encodedKey1 := scaleMarshal(t, key1)
-				record1 := journalRecord{DeletedMerkleValues: map[string]struct{}{
+				record1 := journalRecord{DeletedNodeHashes: map[string]struct{}{
 					"deleted_hash_1": {},
 					"deleted_hash_2": {},
 				}}
@@ -466,7 +466,7 @@ func Test_pruneStorage(t *testing.T) {
 
 				key2 := journalKey{BlockNumber: 10, BlockHash: common.Hash{2}}
 				encodedKey2 := scaleMarshal(t, key2)
-				record2 := journalRecord{DeletedMerkleValues: map[string]struct{}{
+				record2 := journalRecord{DeletedNodeHashes: map[string]struct{}{
 					"deleted_hash_3": {},
 				}}
 				encodedRecord2 := scaleMarshal(t, record2)
@@ -596,7 +596,7 @@ func Test_storeJournalRecord(t *testing.T) {
 			},
 			blockNumber: 1,
 			blockHash:   common.Hash{2},
-			record:      journalRecord{DeletedMerkleValues: map[string]struct{}{"deletedhash": {}}},
+			record:      journalRecord{DeletedNodeHashes: map[string]struct{}{"deletedhash": {}}},
 			errWrapped:  errTest,
 			errMessage:  "putting journal key in database batch: test error",
 		},
@@ -607,8 +607,8 @@ func Test_storeJournalRecord(t *testing.T) {
 				encodedKey := scaleMarshal(t, journalKey{BlockNumber: 1, BlockHash: common.Hash{2}})
 				database.EXPECT().Put(databaseKey, encodedKey).Return(nil)
 				encodedRecord := scaleMarshal(t, journalRecord{
-					DeletedMerkleValues:  map[string]struct{}{"deletedhash": {}},
-					InsertedMerkleValues: map[string]struct{}{"insertedhash": {}},
+					DeletedNodeHashes:  map[string]struct{}{"deletedhash": {}},
+					InsertedNodeHashes: map[string]struct{}{"insertedhash": {}},
 				})
 				database.EXPECT().Put(encodedKey, encodedRecord).Return(errTest)
 				return database
@@ -616,8 +616,8 @@ func Test_storeJournalRecord(t *testing.T) {
 			blockNumber: 1,
 			blockHash:   common.Hash{2},
 			record: journalRecord{
-				DeletedMerkleValues:  map[string]struct{}{"deletedhash": {}},
-				InsertedMerkleValues: map[string]struct{}{"insertedhash": {}},
+				DeletedNodeHashes:  map[string]struct{}{"deletedhash": {}},
+				InsertedNodeHashes: map[string]struct{}{"insertedhash": {}},
 			},
 			errWrapped: errTest,
 			errMessage: "putting journal record in database batch: test error",
@@ -629,8 +629,8 @@ func Test_storeJournalRecord(t *testing.T) {
 				encodedKey := scaleMarshal(t, journalKey{BlockNumber: 1, BlockHash: common.Hash{2}})
 				database.EXPECT().Put(databaseKey, encodedKey).Return(nil)
 				encodedRecord := scaleMarshal(t, journalRecord{
-					DeletedMerkleValues:  map[string]struct{}{"deletedhash": {}},
-					InsertedMerkleValues: map[string]struct{}{"insertedhash": {}},
+					DeletedNodeHashes:  map[string]struct{}{"deletedhash": {}},
+					InsertedNodeHashes: map[string]struct{}{"insertedhash": {}},
 				})
 				database.EXPECT().Put(encodedKey, encodedRecord).Return(nil)
 				return database
@@ -638,8 +638,8 @@ func Test_storeJournalRecord(t *testing.T) {
 			blockNumber: 1,
 			blockHash:   common.Hash{2},
 			record: journalRecord{
-				DeletedMerkleValues:  map[string]struct{}{"deletedhash": {}},
-				InsertedMerkleValues: map[string]struct{}{"insertedhash": {}},
+				DeletedNodeHashes:  map[string]struct{}{"deletedhash": {}},
+				InsertedNodeHashes: map[string]struct{}{"insertedhash": {}},
 			},
 		},
 	}
@@ -684,7 +684,7 @@ func Test_getJournalRecord(t *testing.T) {
 			blockNumber: 1,
 			blockHash:   common.Hash{2},
 			errWrapped:  errTest,
-			errMessage:  "getting journal record from database: test error",
+			errMessage:  "getting from database: test error",
 		},
 		"scale decoding error": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
@@ -704,8 +704,8 @@ func Test_getJournalRecord(t *testing.T) {
 				database := NewMockGetter(ctrl)
 				expectedKey := scaleMarshal(t, journalKey{BlockNumber: 1, BlockHash: common.Hash{2}})
 				returnedValue := scaleMarshal(t, journalRecord{
-					InsertedMerkleValues: map[string]struct{}{"a": {}, "b": {}},
-					DeletedMerkleValues:  map[string]struct{}{"b": {}, "c": {}},
+					InsertedNodeHashes: map[string]struct{}{"a": {}, "b": {}},
+					DeletedNodeHashes:  map[string]struct{}{"b": {}, "c": {}},
 				})
 				database.EXPECT().Get(expectedKey).Return(returnedValue, nil)
 				return database
@@ -713,8 +713,8 @@ func Test_getJournalRecord(t *testing.T) {
 			blockNumber: 1,
 			blockHash:   common.Hash{2},
 			record: journalRecord{
-				InsertedMerkleValues: map[string]struct{}{"a": {}, "b": {}},
-				DeletedMerkleValues:  map[string]struct{}{"b": {}, "c": {}},
+				InsertedNodeHashes: map[string]struct{}{"a": {}, "b": {}},
+				DeletedNodeHashes:  map[string]struct{}{"b": {}, "c": {}},
 			},
 		},
 	}
@@ -761,7 +761,7 @@ func Test_storeBlockNumberAtKey(t *testing.T) {
 			key:         []byte("key"),
 			blockNumber: 1,
 			errWrapped:  errTest,
-			errMessage:  "putting block number in database batch: test error",
+			errMessage:  "putting block number 1: test error",
 		},
 		"success": {
 			batchBuilder: func(ctrl *gomock.Controller) Putter {

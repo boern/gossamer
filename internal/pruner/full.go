@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	lastPrunedKey               = "last_pruned"
-	highestBlockNumberKey       = "highest_block_number"
-	deletedMerkleValueKeyPrefix = "deleted_"
-	blockNumberToHashPrefix     = "block_number_to_hash_"
+	lastPrunedKey            = "last_pruned"
+	highestBlockNumberKey    = "highest_block_number"
+	deletedNodeHashKeyPrefix = "deleted_"
+	blockNumberToHashPrefix  = "block_number_to_hash_"
 )
 
 // FullNode prunes unneeded database keys for blocks older than the current
@@ -53,12 +53,12 @@ type journalKey struct {
 }
 
 type journalRecord struct {
-	// InsertedMerkleValues is the set of Merkle values of the trie nodes
+	// InsertedNodeHashes is the set of node hashes of the trie nodes
 	// inserted in the trie for the block.
-	InsertedMerkleValues map[string]struct{}
-	// DeletedMerkleValues is the set of Merkle values of the trie nodes
+	InsertedNodeHashes map[string]struct{}
+	// DeletedNodeHashes is the set of node hashes of the trie nodes
 	// removed from the trie for the block.
-	DeletedMerkleValues map[string]struct{}
+	DeletedNodeHashes map[string]struct{}
 }
 
 // NewFullNode creates a full node pruner.
@@ -106,7 +106,7 @@ func NewFullNode(journalDB JournalDatabase, storageDB ChainDBNewBatcher, retainB
 // StoreJournalRecord stores the trie deltas impacting the storage database for a particular
 // block hash. It prunes all block numbers falling off the window of block numbers to keep,
 // before inserting the new record. It is thread safe to call.
-func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues map[string]struct{},
+func (p *FullNode) StoreJournalRecord(deletedNodeHashes, insertedNodeHashes map[string]struct{},
 	blockHash common.Hash, blockNumber uint32) (err error) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -121,7 +121,7 @@ func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues 
 	// WARNING: this must be before the pruning to avoid
 	// pruning still needed database keys.
 	journalDBBatch := p.journalDatabase.NewBatch()
-	err = p.handleInsertedKeys(insertedMerkleValues, blockNumber,
+	err = p.handleInsertedKeys(insertedNodeHashes, blockNumber,
 		blockHash, journalDBBatch)
 	if err != nil {
 		journalDBBatch.Reset()
@@ -167,8 +167,8 @@ func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues 
 	}
 
 	record := journalRecord{
-		InsertedMerkleValues: insertedMerkleValues,
-		DeletedMerkleValues:  deletedMerkleValues,
+		InsertedNodeHashes: insertedNodeHashes,
+		DeletedNodeHashes:  deletedNodeHashes,
 	}
 	err = storeJournalRecord(journalDBBatch, blockNumber, blockHash, record)
 	if err != nil {
@@ -185,29 +185,29 @@ func (p *FullNode) StoreJournalRecord(deletedMerkleValues, insertedMerkleValues 
 	return nil
 }
 
-func (p *FullNode) handleInsertedKeys(insertedMerkleValues map[string]struct{},
+func (p *FullNode) handleInsertedKeys(insertedNodeHashes map[string]struct{},
 	blockNumber uint32, blockHash common.Hash, journalDBBatch Putter) (err error) {
-	for insertedMerkleValue := range insertedMerkleValues {
-		err = p.handleInsertedKey(insertedMerkleValue, blockNumber, blockHash, journalDBBatch)
+	for insertedNodeHash := range insertedNodeHashes {
+		err = p.handleInsertedKey(insertedNodeHash, blockNumber, blockHash, journalDBBatch)
 		if err != nil {
 			return fmt.Errorf("handling inserted key 0x%x: %w",
-				[]byte(insertedMerkleValue), err)
+				[]byte(insertedNodeHash), err)
 		}
 	}
 
 	return nil
 }
 
-func (p *FullNode) handleInsertedKey(insertedMerkleValue string, blockNumber uint32,
+func (p *FullNode) handleInsertedKey(insertedNodeHash string, blockNumber uint32,
 	blockHash common.Hash, journalDBBatch Putter) (err error) {
-	// Try to find if Merkle value was deleted in another block before
+	// Try to find if the node hash was deleted in another block before
 	// since we no longer want to prune it, as it was re-inserted.
-	journalKeyDeletedAt, err := p.journalDatabase.Get([]byte(deletedMerkleValueKeyPrefix + insertedMerkleValue))
-	merkleValueDeletedInAnotherBlock := errors.Is(err, chaindb.ErrKeyNotFound)
-	if !merkleValueDeletedInAnotherBlock {
+	journalKeyDeletedAt, err := p.journalDatabase.Get([]byte(deletedNodeHashKeyPrefix + insertedNodeHash))
+	nodeHashDeletedInAnotherBlock := errors.Is(err, chaindb.ErrKeyNotFound)
+	if !nodeHashDeletedInAnotherBlock {
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("getting journal key for Merkle value from journal database: %w", err)
+		return fmt.Errorf("getting journal key for node hash from journal database: %w", err)
 	}
 
 	var key journalKey
@@ -231,7 +231,7 @@ func (p *FullNode) handleInsertedKey(insertedMerkleValue string, blockNumber uin
 		return nil
 	}
 
-	// Remove Merkle value from the deleted set of the block it was deleted in.
+	// Remove node hash from the deleted set of the block it was deleted in.
 	encodedJournalRecord, err := p.journalDatabase.Get(journalKeyDeletedAt)
 	if err != nil {
 		return fmt.Errorf("getting record from journal database: %w", err)
@@ -243,7 +243,7 @@ func (p *FullNode) handleInsertedKey(insertedMerkleValue string, blockNumber uin
 		return fmt.Errorf("decoding journal record: %w", err)
 	}
 
-	delete(record.DeletedMerkleValues, insertedMerkleValue)
+	delete(record.DeletedNodeHashes, insertedNodeHash)
 
 	encodedJournalRecord, err = scale.Marshal(record)
 	if err != nil {
@@ -322,8 +322,8 @@ func pruneStorage(blockNumber uint32, blockHashes []common.Hash,
 			return fmt.Errorf("getting journal record: %w", err)
 		}
 
-		for deletedMerkleValue := range record.DeletedMerkleValues {
-			err = batch.Del([]byte(deletedMerkleValue))
+		for deletedNodeHash := range record.DeletedNodeHashes {
+			err = batch.Del([]byte(deletedNodeHash))
 			if err != nil {
 				return fmt.Errorf("deleting key from batch: %w", err)
 			}
@@ -368,11 +368,11 @@ func storeJournalRecord(batch Putter, blockNumber uint32, blockHash common.Hash,
 		return fmt.Errorf("scale encoding journal key: %w", err)
 	}
 
-	for deletedMerkleValue := range record.DeletedMerkleValues {
+	for deletedNodeHash := range record.DeletedNodeHashes {
 		// We store the block hash + block number for each deleted node hash
 		// so a node hash can quickly be checked for from the journal database
 		// when running `handleInsertedKey`.
-		databaseKey := []byte(deletedMerkleValueKeyPrefix + deletedMerkleValue)
+		databaseKey := []byte(deletedNodeHashKeyPrefix + deletedNodeHash)
 		err = batch.Put(databaseKey, encodedKey)
 		if err != nil {
 			return fmt.Errorf("putting journal key in database batch: %w", err)

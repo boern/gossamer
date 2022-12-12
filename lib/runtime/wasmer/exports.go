@@ -12,14 +12,6 @@ import (
 	"github.com/ChainSafe/gossamer/pkg/scale"
 )
 
-// TODO replace once kishans PR is merged
-type OpaqueKeyOwnershipProof []byte
-
-type GrandpaEquivocationProof struct {
-	setId        uint64
-	equivocation types.GrandpaEquivocation
-}
-
 // ValidateTransaction runs the extrinsic through the runtime function
 // TaggedTransactionQueue_validate_transaction and returns *transaction.Validity. The error can
 // be a VDT of either transaction.InvalidTransaction or transaction.UnknownTransaction, or can represent
@@ -233,7 +225,7 @@ func (in *Instance) QueryCallFeeDetails(ext []byte) (*types.FeeDetails, error) {
 
 // GrandpaGenerateKeyOwnershipProof returns grandpa key ownership proof from runtime.
 func (in *Instance) GrandpaGenerateKeyOwnershipProof(authSetId uint64, authorityID ed25519.PublicKeyBytes) (
-	OpaqueKeyOwnershipProof, error) {
+	types.OpaqueKeyOwnershipProof, error) {
 
 	combinedArg := []byte{}
 	encodedSetID, err := scale.Marshal(authSetId)
@@ -253,7 +245,7 @@ func (in *Instance) GrandpaGenerateKeyOwnershipProof(authSetId uint64, authority
 		return nil, err
 	}
 
-	keyOwnershipProof := OpaqueKeyOwnershipProof{}
+	keyOwnershipProof := types.OpaqueKeyOwnershipProof{}
 	err = scale.Unmarshal(ret, &keyOwnershipProof)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshalling: %w", err)
@@ -264,7 +256,7 @@ func (in *Instance) GrandpaGenerateKeyOwnershipProof(authSetId uint64, authority
 
 /*
 
-SubmitReportEquivocation Args
+GrandpaSubmitReportEquivocationUnsignedExtrinsic Args
 - idv is authority set
 - e is stage
 - r is round number
@@ -281,17 +273,9 @@ Return
 - A SCALE encoded Option as defined in Definition 194 containing an empty value on success.
 
 */
-//func (in *Instance) SubmitReportEquivocation() error {
-//	_, err := in.Exec(runtime.GrandpaSubmitReportEquivocation, []byte{})
-//	if err != nil {
-//		return err
-//	}
-//	return nil
-//}
-
 // GrandpaSubmitReportEquivocationUnsignedExtrinsic reports equivocation report to the runtime.
 func (in *Instance) GrandpaSubmitReportEquivocationUnsignedExtrinsic(
-	equivocationProof GrandpaEquivocationProof, keyOwnershipProof OpaqueKeyOwnershipProof,
+	equivocationProof types.GrandpaEquivocationProof, keyOwnershipProof types.OpaqueKeyOwnershipProof,
 ) error {
 
 	combinedArg := []byte{}

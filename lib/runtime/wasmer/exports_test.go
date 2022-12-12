@@ -1239,7 +1239,8 @@ func TestInstance_GrandpaSubmitReportEquivocationUnsignedExtrinsic(t *testing.T)
 		Number: 999,
 	}
 	testSignature := [64]byte{1, 2, 3, 4}
-	prevoteEquivocation := types.PreVoteEquivocation{
+
+	grandpaEquivocation := types.GrandpaEquivocation{
 		RoundNumber:     0,
 		ID:              *authA,
 		FirstVote:       testFirstVote,
@@ -1247,8 +1248,9 @@ func TestInstance_GrandpaSubmitReportEquivocationUnsignedExtrinsic(t *testing.T)
 		SecondVote:      testSecondVote,
 		SecondSignature: testSignature,
 	}
+	preVoteEquivocation := types.PreVoteEquivocation(grandpaEquivocation)
 	equivocationVote := types.NewGrandpaEquivocation()
-	err = equivocationVote.Set(prevoteEquivocation)
+	err = equivocationVote.Set(preVoteEquivocation)
 	require.NoError(t, err)
 
 	equivocationProof := types.GrandpaEquivocationProof{

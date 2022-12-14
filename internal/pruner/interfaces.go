@@ -24,7 +24,6 @@ type ChainDBNewBatcher interface {
 type JournalDatabase interface {
 	ChainDBNewBatcher
 	Getter
-	NewIterator() chaindb.Iterator
 }
 
 // GetterPutter combines the Getter and Putter interfaces.

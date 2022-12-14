@@ -9,7 +9,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/ChainSafe/chaindb"
+	"github.com/ChainSafe/gossamer/internal/database"
 	"github.com/ChainSafe/gossamer/lib/common"
 	"github.com/ChainSafe/gossamer/pkg/scale"
 	"github.com/golang/mock/gomock"
@@ -34,9 +34,9 @@ func Test_FullNode_pruneAll(t *testing.T) {
 	testCases := map[string]struct {
 		pruner                 *FullNode
 		journalDatabaseBuilder func(ctrl *gomock.Controller) JournalDatabase
-		storageDatabaseBuilder func(ctrl *gomock.Controller) ChainDBNewBatcher
+		storageDatabaseBuilder func(ctrl *gomock.Controller) NewWriteBatcher
 		loggerBuilder          func(ctrl *gomock.Controller) Logger
-		journalBatchBuilder    func(ctrl *gomock.Controller) PutDeleter
+		journalBatchBuilder    func(ctrl *gomock.Controller) SetDeleter
 		errWrapped             error
 		errMessage             string
 		expectedPruner         *FullNode
@@ -64,11 +64,11 @@ func Test_FullNode_pruneAll(t *testing.T) {
 				journalDatabase.EXPECT().Get([]byte("block_number_to_hash_1")).Return(nil, errTest)
 				return journalDatabase
 			},
-			storageDatabaseBuilder: func(ctrl *gomock.Controller) ChainDBNewBatcher {
-				storageDatabase := NewMockChainDBNewBatcher(ctrl)
-				batch := NewMockBatch(ctrl)
-				storageDatabase.EXPECT().NewBatch().Return(batch)
-				batch.EXPECT().Reset()
+			storageDatabaseBuilder: func(ctrl *gomock.Controller) NewWriteBatcher {
+				storageDatabase := NewMockJournalDatabase(ctrl)
+				batch := NewMockWriteBatch(ctrl)
+				storageDatabase.EXPECT().NewWriteBatch().Return(batch)
+				batch.EXPECT().Cancel()
 				return storageDatabase
 			},
 			expectedPruner: &FullNode{
@@ -102,25 +102,25 @@ func Test_FullNode_pruneAll(t *testing.T) {
 
 				return database
 			},
-			storageDatabaseBuilder: func(ctrl *gomock.Controller) ChainDBNewBatcher {
-				storageDatabase := NewMockChainDBNewBatcher(ctrl)
-				batch := NewMockBatch(ctrl)
-				storageDatabase.EXPECT().NewBatch().Return(batch)
-				batch.EXPECT().Del(common.Hash{3}.ToBytes()).Return(nil)
-				batch.EXPECT().Reset()
+			storageDatabaseBuilder: func(ctrl *gomock.Controller) NewWriteBatcher {
+				storageDatabase := NewMockJournalDatabase(ctrl)
+				batch := NewMockWriteBatch(ctrl)
+				storageDatabase.EXPECT().NewWriteBatch().Return(batch)
+				batch.EXPECT().Delete(common.Hash{3}.ToBytes()).Return(nil)
+				batch.EXPECT().Cancel()
 				return storageDatabase
 			},
-			journalBatchBuilder: func(ctrl *gomock.Controller) PutDeleter {
-				batch := NewMockPutDeleter(ctrl)
+			journalBatchBuilder: func(ctrl *gomock.Controller) SetDeleter {
+				batch := NewMockSetDeleter(ctrl)
 
-				batch.EXPECT().Del([]byte("block_number_to_hash_1")).Return(nil)
+				batch.EXPECT().Delete([]byte("block_number_to_hash_1")).Return(nil)
 
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
 				encodedKey := scaleMarshal(t, key)
-				batch.EXPECT().Del(encodedKey).Return(nil)
+				batch.EXPECT().Delete(encodedKey).Return(nil)
 
 				encodedLastBlockNumberPruned := scaleMarshal(t, uint32(1))
-				batch.EXPECT().Put([]byte("last_pruned"), encodedLastBlockNumberPruned).
+				batch.EXPECT().Set([]byte("last_pruned"), encodedLastBlockNumberPruned).
 					Return(errTest)
 				return batch
 			},
@@ -154,25 +154,25 @@ func Test_FullNode_pruneAll(t *testing.T) {
 
 				return database
 			},
-			storageDatabaseBuilder: func(ctrl *gomock.Controller) ChainDBNewBatcher {
-				storageDatabase := NewMockChainDBNewBatcher(ctrl)
-				batch := NewMockBatch(ctrl)
-				storageDatabase.EXPECT().NewBatch().Return(batch)
-				batch.EXPECT().Del(common.Hash{3}.ToBytes()).Return(nil)
+			storageDatabaseBuilder: func(ctrl *gomock.Controller) NewWriteBatcher {
+				storageDatabase := NewMockJournalDatabase(ctrl)
+				batch := NewMockWriteBatch(ctrl)
+				storageDatabase.EXPECT().NewWriteBatch().Return(batch)
+				batch.EXPECT().Delete(common.Hash{3}.ToBytes()).Return(nil)
 				batch.EXPECT().Flush().Return(errTest)
 				return storageDatabase
 			},
-			journalBatchBuilder: func(ctrl *gomock.Controller) PutDeleter {
-				batch := NewMockPutDeleter(ctrl)
+			journalBatchBuilder: func(ctrl *gomock.Controller) SetDeleter {
+				batch := NewMockSetDeleter(ctrl)
 
-				batch.EXPECT().Del([]byte("block_number_to_hash_1")).Return(nil)
+				batch.EXPECT().Delete([]byte("block_number_to_hash_1")).Return(nil)
 
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
 				encodedKey := scaleMarshal(t, key)
-				batch.EXPECT().Del(encodedKey).Return(nil)
+				batch.EXPECT().Delete(encodedKey).Return(nil)
 
 				encodedLastBlockNumberPruned := scaleMarshal(t, uint32(1))
-				batch.EXPECT().Put([]byte("last_pruned"), encodedLastBlockNumberPruned).
+				batch.EXPECT().Set([]byte("last_pruned"), encodedLastBlockNumberPruned).
 					Return(nil)
 				return batch
 			},
@@ -205,11 +205,11 @@ func Test_FullNode_pruneAll(t *testing.T) {
 
 				return database
 			},
-			storageDatabaseBuilder: func(ctrl *gomock.Controller) ChainDBNewBatcher {
-				storageDatabase := NewMockChainDBNewBatcher(ctrl)
-				batch := NewMockBatch(ctrl)
-				storageDatabase.EXPECT().NewBatch().Return(batch)
-				batch.EXPECT().Del(common.Hash{3}.ToBytes()).Return(nil)
+			storageDatabaseBuilder: func(ctrl *gomock.Controller) NewWriteBatcher {
+				storageDatabase := NewMockJournalDatabase(ctrl)
+				batch := NewMockWriteBatch(ctrl)
+				storageDatabase.EXPECT().NewWriteBatch().Return(batch)
+				batch.EXPECT().Delete(common.Hash{3}.ToBytes()).Return(nil)
 				batch.EXPECT().Flush().Return(nil)
 				return storageDatabase
 			},
@@ -218,17 +218,17 @@ func Test_FullNode_pruneAll(t *testing.T) {
 				logger.EXPECT().Debugf("pruned block numbers [%d..%d]", uint32(1), uint32(1))
 				return logger
 			},
-			journalBatchBuilder: func(ctrl *gomock.Controller) PutDeleter {
-				batch := NewMockPutDeleter(ctrl)
+			journalBatchBuilder: func(ctrl *gomock.Controller) SetDeleter {
+				batch := NewMockSetDeleter(ctrl)
 
-				batch.EXPECT().Del([]byte("block_number_to_hash_1")).Return(nil)
+				batch.EXPECT().Delete([]byte("block_number_to_hash_1")).Return(nil)
 
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
 				encodedKey := scaleMarshal(t, key)
-				batch.EXPECT().Del(encodedKey).Return(nil)
+				batch.EXPECT().Delete(encodedKey).Return(nil)
 
 				encodedLastBlockNumberPruned := scaleMarshal(t, uint32(1))
-				batch.EXPECT().Put([]byte("last_pruned"), encodedLastBlockNumberPruned).
+				batch.EXPECT().Set([]byte("last_pruned"), encodedLastBlockNumberPruned).
 					Return(nil)
 				return batch
 			},
@@ -261,7 +261,7 @@ func Test_FullNode_pruneAll(t *testing.T) {
 				testCase.expectedPruner.logger = testCase.pruner.logger
 			}
 
-			var journalBatch PutDeleter
+			var journalBatch SetDeleter
 			if testCase.journalBatchBuilder != nil {
 				journalBatch = testCase.journalBatchBuilder(ctrl)
 			}
@@ -293,7 +293,7 @@ func Test_prune(t *testing.T) {
 		"load block hashes error": {
 			blockNumberToPrune: 1,
 			journalDBBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				database.EXPECT().Get([]byte("block_number_to_hash_1")).Return(nil, errTest)
 				return database
 			},
@@ -306,7 +306,7 @@ func Test_prune(t *testing.T) {
 		"prune storage error": {
 			blockNumberToPrune: 1,
 			journalDBBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				blockHashes := common.Hash{2}.ToBytes()
 				database.EXPECT().Get([]byte("block_number_to_hash_1")).Return(blockHashes, nil)
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
@@ -323,7 +323,7 @@ func Test_prune(t *testing.T) {
 		"prune journal error": {
 			blockNumberToPrune: 1,
 			journalDBBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				blockHashes := common.Hash{2}.ToBytes()
 				database.EXPECT().Get([]byte("block_number_to_hash_1")).Return(blockHashes, nil)
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
@@ -336,13 +336,13 @@ func Test_prune(t *testing.T) {
 				return database
 			},
 			journalBatchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
-				batch.EXPECT().Del([]byte("block_number_to_hash_1")).Return(errTest)
+				batch := NewMockSetDeleter(ctrl)
+				batch.EXPECT().Delete([]byte("block_number_to_hash_1")).Return(errTest)
 				return batch
 			},
 			storageBatchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
-				batch.EXPECT().Del(common.Hash{3}.ToBytes()).Return(nil)
+				batch := NewMockSetDeleter(ctrl)
+				batch.EXPECT().Delete(common.Hash{3}.ToBytes()).Return(nil)
 				return batch
 			},
 			errWrapped: errTest,
@@ -353,7 +353,7 @@ func Test_prune(t *testing.T) {
 		"success": {
 			blockNumberToPrune: 1,
 			journalDBBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				blockHashes := common.Hash{2}.ToBytes()
 				database.EXPECT().Get([]byte("block_number_to_hash_1")).Return(blockHashes, nil)
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
@@ -366,16 +366,16 @@ func Test_prune(t *testing.T) {
 				return database
 			},
 			journalBatchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
-				batch.EXPECT().Del([]byte("block_number_to_hash_1")).Return(nil)
+				batch := NewMockSetDeleter(ctrl)
+				batch.EXPECT().Delete([]byte("block_number_to_hash_1")).Return(nil)
 				key := journalKey{BlockNumber: 1, BlockHash: common.Hash{2}}
 				encodedKey := scaleMarshal(t, key)
-				batch.EXPECT().Del(encodedKey).Return(nil)
+				batch.EXPECT().Delete(encodedKey).Return(nil)
 				return batch
 			},
 			storageBatchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
-				batch.EXPECT().Del(common.Hash{3}.ToBytes()).Return(nil)
+				batch := NewMockSetDeleter(ctrl)
+				batch.EXPECT().Delete(common.Hash{3}.ToBytes()).Return(nil)
 				return batch
 			},
 		},
@@ -417,7 +417,7 @@ func Test_pruneStorage(t *testing.T) {
 			blockNumber: 10,
 			blockHashes: []common.Hash{{1}},
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				key := journalKey{BlockNumber: 10, BlockHash: common.Hash{1}}
 				encodedKey := scaleMarshal(t, key)
 				database.EXPECT().Get(encodedKey).Return(nil, errTest)
@@ -431,7 +431,7 @@ func Test_pruneStorage(t *testing.T) {
 			blockNumber: 10,
 			blockHashes: []common.Hash{{1}},
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				key := journalKey{BlockNumber: 10, BlockHash: common.Hash{1}}
 				encodedKey := scaleMarshal(t, key)
 				record := journalRecord{DeletedNodeHashes: map[common.Hash]struct{}{
@@ -442,8 +442,8 @@ func Test_pruneStorage(t *testing.T) {
 				return database
 			},
 			batchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
-				batch.EXPECT().Del(common.Hash{3}.ToBytes()).Return(errTest)
+				batch := NewMockSetDeleter(ctrl)
+				batch.EXPECT().Delete(common.Hash{3}.ToBytes()).Return(errTest)
 				return batch
 			},
 			errWrapped: errTest,
@@ -453,7 +453,7 @@ func Test_pruneStorage(t *testing.T) {
 			blockNumber: 10,
 			blockHashes: []common.Hash{{1}, {2}},
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 
 				key1 := journalKey{BlockNumber: 10, BlockHash: common.Hash{1}}
 				encodedKey1 := scaleMarshal(t, key1)
@@ -470,10 +470,10 @@ func Test_pruneStorage(t *testing.T) {
 				return database
 			},
 			batchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
-				batch.EXPECT().Del(common.Hash{11}.ToBytes()).Return(nil)
-				batch.EXPECT().Del(common.Hash{12}.ToBytes()).Return(nil)
-				batch.EXPECT().Del(common.Hash{13}.ToBytes()).Return(nil)
+				batch := NewMockSetDeleter(ctrl)
+				batch.EXPECT().Delete(common.Hash{11}.ToBytes()).Return(nil)
+				batch.EXPECT().Delete(common.Hash{12}.ToBytes()).Return(nil)
+				batch.EXPECT().Delete(common.Hash{13}.ToBytes()).Return(nil)
 				return batch
 			},
 		},
@@ -512,8 +512,8 @@ func Test_pruneJournal(t *testing.T) {
 	}{
 		"prune block hashes error": {
 			batchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
-				batch.EXPECT().Del([]byte("block_number_to_hash_10")).Return(errTest)
+				batch := NewMockSetDeleter(ctrl)
+				batch.EXPECT().Delete([]byte("block_number_to_hash_10")).Return(errTest)
 				return batch
 			},
 			blockNumber: 10,
@@ -524,10 +524,10 @@ func Test_pruneJournal(t *testing.T) {
 		},
 		"delete journal key error": {
 			batchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
-				batch.EXPECT().Del([]byte("block_number_to_hash_10")).Return(nil)
+				batch := NewMockSetDeleter(ctrl)
+				batch.EXPECT().Delete([]byte("block_number_to_hash_10")).Return(nil)
 				encodedKey := scaleMarshal(t, journalKey{BlockNumber: 10, BlockHash: common.Hash{1}})
-				batch.EXPECT().Del(encodedKey).Return(errTest)
+				batch.EXPECT().Delete(encodedKey).Return(errTest)
 				return batch
 			},
 			blockNumber: 10,
@@ -538,12 +538,12 @@ func Test_pruneJournal(t *testing.T) {
 		},
 		"success": {
 			batchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
-				batch.EXPECT().Del([]byte("block_number_to_hash_10")).Return(nil)
+				batch := NewMockSetDeleter(ctrl)
+				batch.EXPECT().Delete([]byte("block_number_to_hash_10")).Return(nil)
 				encodedKeyA := scaleMarshal(t, journalKey{BlockNumber: 10, BlockHash: common.Hash{1}})
-				batch.EXPECT().Del(encodedKeyA).Return(nil)
+				batch.EXPECT().Delete(encodedKeyA).Return(nil)
 				encodedKeyB := scaleMarshal(t, journalKey{BlockNumber: 10, BlockHash: common.Hash{2}})
-				batch.EXPECT().Del(encodedKeyB).Return(nil)
+				batch.EXPECT().Delete(encodedKeyB).Return(nil)
 				return batch
 			},
 			blockNumber: 10,
@@ -574,7 +574,7 @@ func Test_storeJournalRecord(t *testing.T) {
 	errTest := errors.New("test error")
 
 	testCases := map[string]struct {
-		batchBuilder func(ctrl *gomock.Controller) Putter
+		batchBuilder func(ctrl *gomock.Controller) Setter
 		blockNumber  uint32
 		blockHash    common.Hash
 		record       journalRecord
@@ -582,11 +582,11 @@ func Test_storeJournalRecord(t *testing.T) {
 		errMessage   string
 	}{
 		"deleted node hash put error": {
-			batchBuilder: func(ctrl *gomock.Controller) Putter {
-				database := NewMockPutter(ctrl)
+			batchBuilder: func(ctrl *gomock.Controller) Setter {
+				database := NewMockSetDeleter(ctrl)
 				databaseKey := makeDeletedKey(common.Hash{3})
 				encodedKey := scaleMarshal(t, journalKey{BlockNumber: 1, BlockHash: common.Hash{2}})
-				database.EXPECT().Put(databaseKey, encodedKey).Return(errTest)
+				database.EXPECT().Set(databaseKey, encodedKey).Return(errTest)
 				return database
 			},
 			blockNumber: 1,
@@ -596,16 +596,16 @@ func Test_storeJournalRecord(t *testing.T) {
 			errMessage:  "putting journal key in database batch: test error",
 		},
 		"encoded record put error": {
-			batchBuilder: func(ctrl *gomock.Controller) Putter {
-				database := NewMockPutter(ctrl)
+			batchBuilder: func(ctrl *gomock.Controller) Setter {
+				database := NewMockSetDeleter(ctrl)
 				databaseKey := makeDeletedKey(common.Hash{3})
 				encodedKey := scaleMarshal(t, journalKey{BlockNumber: 1, BlockHash: common.Hash{2}})
-				database.EXPECT().Put(databaseKey, encodedKey).Return(nil)
+				database.EXPECT().Set(databaseKey, encodedKey).Return(nil)
 				encodedRecord := scaleMarshal(t, journalRecord{
 					DeletedNodeHashes:  map[common.Hash]struct{}{{3}: {}},
 					InsertedNodeHashes: map[common.Hash]struct{}{{4}: {}},
 				})
-				database.EXPECT().Put(encodedKey, encodedRecord).Return(errTest)
+				database.EXPECT().Set(encodedKey, encodedRecord).Return(errTest)
 				return database
 			},
 			blockNumber: 1,
@@ -618,16 +618,16 @@ func Test_storeJournalRecord(t *testing.T) {
 			errMessage: "putting journal record in database batch: test error",
 		},
 		"success": {
-			batchBuilder: func(ctrl *gomock.Controller) Putter {
-				database := NewMockPutter(ctrl)
+			batchBuilder: func(ctrl *gomock.Controller) Setter {
+				database := NewMockSetDeleter(ctrl)
 				databaseKey := makeDeletedKey(common.Hash{3})
 				encodedKey := scaleMarshal(t, journalKey{BlockNumber: 1, BlockHash: common.Hash{2}})
-				database.EXPECT().Put(databaseKey, encodedKey).Return(nil)
+				database.EXPECT().Set(databaseKey, encodedKey).Return(nil)
 				encodedRecord := scaleMarshal(t, journalRecord{
 					DeletedNodeHashes:  map[common.Hash]struct{}{{3}: {}},
 					InsertedNodeHashes: map[common.Hash]struct{}{{4}: {}},
 				})
-				database.EXPECT().Put(encodedKey, encodedRecord).Return(nil)
+				database.EXPECT().Set(encodedKey, encodedRecord).Return(nil)
 				return database
 			},
 			blockNumber: 1,
@@ -671,7 +671,7 @@ func Test_getJournalRecord(t *testing.T) {
 	}{
 		"get error": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				expectedKey := scaleMarshal(t, journalKey{BlockNumber: 1, BlockHash: common.Hash{2}})
 				database.EXPECT().Get(expectedKey).Return(nil, errTest)
 				return database
@@ -683,7 +683,7 @@ func Test_getJournalRecord(t *testing.T) {
 		},
 		"scale decoding error": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				expectedKey := scaleMarshal(t, journalKey{BlockNumber: 1, BlockHash: common.Hash{2}})
 				database.EXPECT().Get(expectedKey).Return([]byte{99}, nil)
 				return database
@@ -696,7 +696,7 @@ func Test_getJournalRecord(t *testing.T) {
 		},
 		"success": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				expectedKey := scaleMarshal(t, journalKey{BlockNumber: 1, BlockHash: common.Hash{2}})
 				returnedValue := scaleMarshal(t, journalRecord{
 					InsertedNodeHashes: map[common.Hash]struct{}{{1}: {}, {2}: {}},
@@ -739,18 +739,18 @@ func Test_storeBlockNumberAtKey(t *testing.T) {
 	errTest := errors.New("test error")
 
 	testCases := map[string]struct {
-		batchBuilder func(ctrl *gomock.Controller) Putter
+		batchBuilder func(ctrl *gomock.Controller) Setter
 		key          []byte
 		blockNumber  uint32
 		errWrapped   error
 		errMessage   string
 	}{
 		"put error": {
-			batchBuilder: func(ctrl *gomock.Controller) Putter {
-				database := NewMockPutter(ctrl)
+			batchBuilder: func(ctrl *gomock.Controller) Setter {
+				database := NewMockSetDeleter(ctrl)
 				expectedKey := []byte("key")
 				expectedValue := scaleMarshal(t, uint32(1))
-				database.EXPECT().Put(expectedKey, expectedValue).Return(errTest)
+				database.EXPECT().Set(expectedKey, expectedValue).Return(errTest)
 				return database
 			},
 			key:         []byte("key"),
@@ -759,11 +759,11 @@ func Test_storeBlockNumberAtKey(t *testing.T) {
 			errMessage:  "putting block number 1: test error",
 		},
 		"success": {
-			batchBuilder: func(ctrl *gomock.Controller) Putter {
-				database := NewMockPutter(ctrl)
+			batchBuilder: func(ctrl *gomock.Controller) Setter {
+				database := NewMockSetDeleter(ctrl)
 				expectedKey := []byte("key")
 				expectedValue := scaleMarshal(t, uint32(1))
-				database.EXPECT().Put(expectedKey, expectedValue).Return(nil)
+				database.EXPECT().Set(expectedKey, expectedValue).Return(nil)
 				return database
 			},
 			key:         []byte("key"),
@@ -802,7 +802,7 @@ func Test_getBlockNumberFromKey(t *testing.T) {
 	}{
 		"get error": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				expectedKey := []byte("key")
 				database.EXPECT().Get(expectedKey).Return(nil, errTest)
 				return database
@@ -813,16 +813,16 @@ func Test_getBlockNumberFromKey(t *testing.T) {
 		},
 		"key not found": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				journalDatabase := NewMockJournalDatabase(ctrl)
 				expectedKey := []byte("key")
-				database.EXPECT().Get(expectedKey).Return(nil, chaindb.ErrKeyNotFound)
-				return database
+				journalDatabase.EXPECT().Get(expectedKey).Return(nil, database.ErrKeyNotFound)
+				return journalDatabase
 			},
 			key: []byte("key"),
 		},
 		"decoding error": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				expectedKey := []byte("key")
 				database.EXPECT().Get(expectedKey).Return([]byte{}, nil)
 				return database
@@ -833,7 +833,7 @@ func Test_getBlockNumberFromKey(t *testing.T) {
 		},
 		"success": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				expectedKey := []byte("key")
 				returnedValue := scaleMarshal(t, uint32(1))
 				database.EXPECT().Get(expectedKey).Return(returnedValue, nil)
@@ -876,7 +876,7 @@ func Test_loadBlockHashes(t *testing.T) {
 	}{
 		"get from database error": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
 				database.EXPECT().Get(databaseKey).Return(nil, errTest)
 				return database
@@ -887,7 +887,7 @@ func Test_loadBlockHashes(t *testing.T) {
 		},
 		"single block hash": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
 				database.EXPECT().Get(databaseKey).Return(common.Hash{2}.ToBytes(), nil)
 				return database
@@ -897,7 +897,7 @@ func Test_loadBlockHashes(t *testing.T) {
 		},
 		"multiple block hashes": {
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
 				databaseValue := bytes.Join([][]byte{
 					common.Hash{2}.ToBytes(), common.Hash{3}.ToBytes(),
@@ -938,19 +938,19 @@ func Test_appendBlockHashes(t *testing.T) {
 		blockNumber     uint32
 		blockHash       common.Hash
 		databaseBuilder func(ctrl *gomock.Controller) Getter
-		batchBuilder    func(ctrl *gomock.Controller) Putter
+		batchBuilder    func(ctrl *gomock.Controller) Setter
 		errWrapped      error
 		errMessage      string
 	}{
 		"get from database error": {
 			blockNumber: 10,
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
 				database.EXPECT().Get(databaseKey).Return(nil, errTest)
 				return database
 			},
-			batchBuilder: func(ctrl *gomock.Controller) Putter {
+			batchBuilder: func(ctrl *gomock.Controller) Setter {
 				return nil
 			},
 			errWrapped: errTest,
@@ -960,16 +960,16 @@ func Test_appendBlockHashes(t *testing.T) {
 			blockNumber: 10,
 			blockHash:   common.Hash{2},
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				journalDB := NewMockJournalDatabase(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
-				database.EXPECT().Get(databaseKey).Return(nil, chaindb.ErrKeyNotFound)
-				return database
+				journalDB.EXPECT().Get(databaseKey).Return(nil, database.ErrKeyNotFound)
+				return journalDB
 			},
-			batchBuilder: func(ctrl *gomock.Controller) Putter {
-				batch := NewMockPutter(ctrl)
+			batchBuilder: func(ctrl *gomock.Controller) Setter {
+				batch := NewMockSetDeleter(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
 				databaseValue := common.Hash{2}.ToBytes()
-				batch.EXPECT().Put(databaseKey, databaseValue).Return(nil)
+				batch.EXPECT().Set(databaseKey, databaseValue).Return(nil)
 				return batch
 			},
 		},
@@ -977,16 +977,16 @@ func Test_appendBlockHashes(t *testing.T) {
 			blockNumber: 10,
 			blockHash:   common.Hash{2},
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
 				database.EXPECT().Get(databaseKey).Return(nil, nil)
 				return database
 			},
-			batchBuilder: func(ctrl *gomock.Controller) Putter {
-				batch := NewMockPutter(ctrl)
+			batchBuilder: func(ctrl *gomock.Controller) Setter {
+				batch := NewMockSetDeleter(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
 				databaseValue := common.Hash{2}.ToBytes()
-				batch.EXPECT().Put(databaseKey, databaseValue).Return(errTest)
+				batch.EXPECT().Set(databaseKey, databaseValue).Return(errTest)
 				return batch
 			},
 			errWrapped: errTest,
@@ -996,7 +996,7 @@ func Test_appendBlockHashes(t *testing.T) {
 			blockNumber: 10,
 			blockHash:   common.Hash{2},
 			databaseBuilder: func(ctrl *gomock.Controller) Getter {
-				database := NewMockGetter(ctrl)
+				database := NewMockJournalDatabase(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
 				databaseValue := bytes.Join([][]byte{
 					common.Hash{1}.ToBytes(), common.Hash{3}.ToBytes(),
@@ -1004,13 +1004,13 @@ func Test_appendBlockHashes(t *testing.T) {
 				database.EXPECT().Get(databaseKey).Return(databaseValue, nil)
 				return database
 			},
-			batchBuilder: func(ctrl *gomock.Controller) Putter {
-				batch := NewMockPutter(ctrl)
+			batchBuilder: func(ctrl *gomock.Controller) Setter {
+				batch := NewMockSetDeleter(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
 				databaseValue := bytes.Join([][]byte{
 					common.Hash{1}.ToBytes(), common.Hash{3}.ToBytes(), common.Hash{2}.ToBytes(),
 				}, nil)
-				batch.EXPECT().Put(databaseKey, databaseValue).Return(nil)
+				batch.EXPECT().Set(databaseKey, databaseValue).Return(nil)
 				return batch
 			},
 		},
@@ -1048,9 +1048,9 @@ func Test_pruneBlockHashes(t *testing.T) {
 		"delete from batch error": {
 			blockNumber: 10,
 			batchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
+				batch := NewMockSetDeleter(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
-				batch.EXPECT().Del(databaseKey).Return(errTest)
+				batch.EXPECT().Delete(databaseKey).Return(errTest)
 				return batch
 			},
 			errWrapped: errTest,
@@ -1059,9 +1059,9 @@ func Test_pruneBlockHashes(t *testing.T) {
 		"success": {
 			blockNumber: 10,
 			batchBuilder: func(ctrl *gomock.Controller) Deleter {
-				batch := NewMockDeleter(ctrl)
+				batch := NewMockSetDeleter(ctrl)
 				databaseKey := []byte("block_number_to_hash_10")
-				batch.EXPECT().Del(databaseKey).Return(nil)
+				batch.EXPECT().Delete(databaseKey).Return(nil)
 				return batch
 			},
 		},

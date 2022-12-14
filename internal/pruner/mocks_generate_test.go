@@ -3,5 +3,5 @@
 
 package pruner
 
-//go:generate mockgen -package=$GOPACKAGE -destination=mocks_test.go . Getter,Putter,Deleter,JournalDatabase,ChainDBNewBatcher,PutDeleter,Logger
-//go:generate mockgen -package=$GOPACKAGE -destination=mocks_chaindb_test.go github.com/ChainSafe/chaindb Batch
+//go:generate mockgen -package=$GOPACKAGE -destination=mocks_test.go . JournalDatabase,SetDeleter,Logger
+//go:generate mockgen -package=$GOPACKAGE -destination=mocks_database_test.go github.com/ChainSafe/gossamer/internal/database WriteBatch

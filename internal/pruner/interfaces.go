@@ -4,7 +4,7 @@
 package pruner
 
 import (
-	"github.com/ChainSafe/chaindb"
+	"github.com/ChainSafe/gossamer/internal/database"
 	"github.com/ChainSafe/gossamer/lib/common"
 )
 
@@ -15,21 +15,21 @@ type Logger interface {
 	Errorf(format string, args ...interface{})
 }
 
-// ChainDBNewBatcher is the chaindb new batcher interface.
-type ChainDBNewBatcher interface {
-	NewBatch() chaindb.Batch
+// NewWriteBatcher is the new batcher interface.
+type NewWriteBatcher interface {
+	NewWriteBatch() (writeBatch database.WriteBatch)
 }
 
-// JournalDatabase is the chaindb interface for the journal database.
+// JournalDatabase is the interface for the journal database.
 type JournalDatabase interface {
-	ChainDBNewBatcher
+	NewWriteBatcher
 	Getter
 }
 
-// GetterPutter combines the Getter and Putter interfaces.
-type GetterPutter interface {
+// GetterSetter combines the Getter and Setter interfaces.
+type GetterSetter interface {
 	Getter
-	Putter
+	Setter
 }
 
 // Getter is the database getter interface.
@@ -37,20 +37,20 @@ type Getter interface {
 	Get(key []byte) (value []byte, err error)
 }
 
-// PutDeleter combines the Putter and Deleter interfaces.
-type PutDeleter interface {
-	Putter
+// SetDeleter combines the Setter and Deleter interfaces.
+type SetDeleter interface {
+	Setter
 	Deleter
 }
 
-// Putter puts a key value in the database and returns an error.
-type Putter interface {
-	Put(key, value []byte) error
+// Setter puts a key value in the database and returns an error.
+type Setter interface {
+	Set(key, value []byte) error
 }
 
 // Deleter deletes a key and returns an error.
 type Deleter interface {
-	Del(key []byte) error
+	Delete(key []byte) error
 }
 
 // BlockState is the block state interface to determine

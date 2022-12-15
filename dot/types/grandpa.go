@@ -186,7 +186,7 @@ func (s *GrandpaSignedVote) String() string {
 // GrandpaVote represents a vote for a block with the given hash and number
 type GrandpaVote struct {
 	Hash   common.Hash
-	Number uint32
+	Number uint64
 }
 
 // String returns the Vote as a string
@@ -196,8 +196,9 @@ func (v *GrandpaVote) String() string {
 
 // GrandpaEquivocation is used to create a proof of equivocation
 type GrandpaEquivocation struct {
-	RoundNumber     uint64
-	ID              ed25519.PublicKey
+	RoundNumber uint64
+	//ID              ed25519.PublicKey
+	ID              [32]byte
 	FirstVote       GrandpaVote
 	FirstSignature  [64]byte
 	SecondVote      GrandpaVote

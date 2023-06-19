@@ -39,8 +39,7 @@ const (
 )
 
 var (
-	logger   = log.NewFromGlobal(log.AddContext("pkg", "network"))
-	maxReads = 256
+	logger = log.NewFromGlobal(log.AddContext("pkg", "network"))
 
 	peerCountGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "gossamer_network_node",
@@ -117,7 +116,7 @@ type Service struct {
 	bufPool       *sync.Pool
 	streamManager *streamManager
 
-	notificationsProtocols map[byte]*notificationsProtocol // map of sub-protocol msg ID to protocol info
+	notificationsProtocols map[MessageType]*notificationsProtocol // map of sub-protocol msg ID to protocol info
 	notificationsMu        sync.RWMutex
 
 	lightRequest   map[peer.ID]struct{} // set if we have sent a light request message to the given peer
@@ -185,7 +184,7 @@ func NewService(cfg *Config) (*Service, error) {
 	host, err := newHost(ctx, cfg)
 	if err != nil {
 		cancel()
-		return nil, err
+		return nil, fmt.Errorf("failed to create host: %w", err)
 	}
 
 	bufPool := &sync.Pool{
@@ -215,7 +214,7 @@ func NewService(cfg *Config) (*Service, error) {
 		noBootstrap:            cfg.NoBootstrap,
 		noMDNS:                 cfg.NoMDNS,
 		syncer:                 cfg.Syncer,
-		notificationsProtocols: make(map[byte]*notificationsProtocol),
+		notificationsProtocols: make(map[MessageType]*notificationsProtocol),
 		lightRequest:           make(map[peer.ID]struct{}),
 		telemetryInterval:      cfg.telemetryInterval,
 		closeCh:                make(chan struct{}),
@@ -388,7 +387,7 @@ func (s *Service) getTotalStreams(inbound bool) (count int64) {
 	return count
 }
 
-func (s *Service) getNumStreams(protocolID byte, inbound bool) (count int64) {
+func (s *Service) getNumStreams(protocolID MessageType, inbound bool) (count int64) {
 	np, has := s.notificationsProtocols[protocolID]
 	if !has {
 		return 0
@@ -495,7 +494,7 @@ mainloop:
 // messageID is a user-defined message ID for the message passed over this protocol.
 func (s *Service) RegisterNotificationsProtocol(
 	protocolID protocol.ID,
-	messageID byte,
+	messageID MessageType,
 	handshakeGetter HandshakeGetter,
 	handshakeDecoder HandshakeDecoder,
 	handshakeValidator HandshakeValidator,
@@ -615,7 +614,7 @@ func (s *Service) Peers() []common.PeerInfo {
 		peerHandshakeMessage := data.handshake
 		peers = append(peers, common.PeerInfo{
 			PeerID:     p.String(),
-			Roles:      peerHandshakeMessage.(*BlockAnnounceHandshake).Roles,
+			Role:       peerHandshakeMessage.(*BlockAnnounceHandshake).Roles,
 			BestHash:   peerHandshakeMessage.(*BlockAnnounceHandshake).BestBlockHash,
 			BestNumber: uint64(peerHandshakeMessage.(*BlockAnnounceHandshake).BestBlockNumber),
 		})
@@ -635,7 +634,7 @@ func (s *Service) RemoveReservedPeers(addrs ...string) error {
 }
 
 // NodeRoles Returns the roles the node is running as.
-func (s *Service) NodeRoles() common.Roles {
+func (s *Service) NodeRoles() common.NetworkRole {
 	return s.cfg.Roles
 }
 
